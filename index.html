@@ -49,6 +49,42 @@
   #itemsMun code { color: var(--acento); font-size: 11px; }
   #itemsMun small { color: var(--suave); font-size: 10.5px; font-variant-numeric: tabular-nums; }
   #itemsMun .vacio { color: var(--suave); cursor: default; display: block; }
+  #btnJerarquia { width: 100%; margin-top: 8px; font: 600 12px system-ui, sans-serif; padding: 6px 8px; border-radius: 6px;
+                  border: 0; cursor: pointer; background: #0f4d2e; color: #fff; }
+  #btnJerarquia:hover { background: #166b40; }
+
+  /* resumen de areas del municipio */
+  #resumenMun { border: 1px solid #1e3a8a; border-radius: 8px; padding: 10px; display: none; }
+  #resumenMun dl { display: grid; grid-template-columns: 1fr auto; gap: 3px 8px; margin: 0; }
+  #resumenMun dt { color: var(--suave); font-size: 11px; }
+  #resumenMun dd { margin: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .barra-uso { display: flex; height: 10px; border-radius: 5px; overflow: hidden; margin: 8px 0 4px; background: #7fb069; }
+  .barra-uso i { background: #1e3a8a; min-width: 2px; }
+  .leyenda-uso { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--suave); }
+  .categoria { display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 700; color: #fff; background: #1e3a8a;
+               border-radius: 10px; padding: 2px 8px; }
+
+  /* ventana de jerarquia urbana */
+  #ventanaJer { position: fixed; inset: 0; z-index: 5000; background: rgba(15, 30, 22, .6); display: flex;
+                align-items: center; justify-content: center; padding: 16px; }
+  #ventanaJer[hidden] { display: none; }
+  #ventanaJer .caja { background: var(--panel); color: var(--texto); border-radius: 12px; width: min(1180px, 100%);
+                      max-height: calc(100vh - 32px); display: flex; flex-direction: column; box-shadow: 0 12px 40px rgba(0,0,0,.4); }
+  #ventanaJer header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--borde); flex-wrap: wrap; }
+  #ventanaJer header h3 { margin: 0; font-size: 17px; color: #0f4d2e; flex: 1; }
+  #ventanaJer header button { font: 600 12px system-ui, sans-serif; padding: 6px 12px; border-radius: 6px; cursor: pointer;
+                              border: 1px solid var(--borde); background: var(--bg); color: var(--texto); }
+  #ventanaJer .categorias { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 18px; border-bottom: 1px solid var(--borde); font-size: 12px; }
+  #ventanaJer .categorias span { background: var(--bg); border: 1px solid var(--borde); border-radius: 8px; padding: 4px 8px; }
+  #ventanaJer .tabla { overflow: auto; }
+  #ventanaJer table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  #ventanaJer th, #ventanaJer td { padding: 6px 8px; border-bottom: 1px solid var(--borde); text-align: left; white-space: nowrap; }
+  #ventanaJer th { position: sticky; top: 0; background: var(--panel); cursor: pointer; font-size: 11px; text-transform: uppercase;
+                   letter-spacing: .04em; color: var(--suave); }
+  #ventanaJer th.num, #ventanaJer td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  #ventanaJer tbody tr { cursor: pointer; }
+  #ventanaJer tbody tr:hover { background: var(--acento-suave); }
+  #ventanaJer .mini-barra { display: inline-block; height: 8px; background: #1e3a8a; border-radius: 4px; vertical-align: middle; margin-right: 6px; }
 
   /* logo del perito: esquina superior derecha, igual al logo principal (250 x 100) */
   #logoPerito { grid-area: perito; width: 250px; height: 100px; background: var(--panel); border-left: 1px solid var(--borde);
@@ -60,7 +96,7 @@
               padding: 6px 8px 8px; cursor: pointer; position: sticky; bottom: 0; box-shadow: 0 -6px 12px var(--panel); }
   .mapa-dep h2 { margin-bottom: 3px; }
   .mapa-dep:hover { border-color: #0f4d2e; }
-  .mapa-dep .marco { position: relative; aspect-ratio: 1200 / 995; }
+  .mapa-dep .marco { position: relative; aspect-ratio: 1200 / 995; width: 62%; margin: 0 auto; }
   .mapa-dep img { display: block; width: 100%; height: 100%; }
   .mapa-dep:hover img { filter: brightness(1.06); }
   .mapa-dep .vista { position: absolute; border: 2px solid #d11f5a; background: rgba(209,31,90,.15); pointer-events: none;
@@ -213,6 +249,13 @@
     <div id="segmentos"></div>
   </section>
   <div id="estado"></div>
+  <section id="resumenMun">
+    <h2 id="resumenTitulo">Resumen del municipio</h2>
+    <dl id="resumenDatos"></dl>
+    <div class="barra-uso" id="barraUso"><i></i></div>
+    <div class="leyenda-uso"><span id="lyUrb"></span><span id="lyRur"></span></div>
+    <span class="categoria" id="resumenCat"></span>
+  </section>
   <section>
     <h2>Ubicación del código</h2>
     <ol id="jerarquia"></ol>
@@ -246,10 +289,23 @@
 
 <div id="mapa"></div>
 
+<div id="ventanaJer" hidden role="dialog" aria-modal="true" aria-label="Jerarquía urbana">
+  <div class="caja">
+    <header>
+      <h3>Jerarquía urbana de los municipios de Boyacá</h3>
+      <button id="jerCsv" type="button">⬇ Descargar CSV</button>
+      <button id="jerCerrar" type="button">✕ Cerrar</button>
+    </header>
+    <div class="categorias" id="jerCategorias"></div>
+    <div class="tabla"><table><thead><tr id="jerCabeza"></tr></thead><tbody id="jerCuerpo"></tbody></table></div>
+  </div>
+</div>
+
 <section id="listaMun" aria-label="Municipios">
   <div class="cabeza">
     <h2>Municipios <span id="cuentaMun"></span></h2>
     <input id="filtroMun" type="search" autocomplete="off" placeholder="Buscar municipio o código…">
+    <button id="btnJerarquia" type="button">📊 Jerarquía urbana y áreas</button>
   </div>
   <ul id="itemsMun"></ul>
 </section>
@@ -1054,6 +1110,128 @@
     if (primero) ir(primero.dataset.codigo);
   });
 
+  // ---------------- zonas urbanas (linea gruesa), areas por municipio y jerarquia urbana
+  var estad = null;
+  mapa.createPane('urbano').style.zIndex = 445;                     // encima de predios, debajo del contorno
+  mapa.getPane('urbano').style.pointerEvents = 'none';
+  var lienzoUrbano = L.canvas({ pane: 'urbano', padding: 0.3 });
+  var capaUrbana = L.layerGroup().addTo(mapa);
+  controlCapas.addOverlay(capaUrbana, 'Zonas urbanas');
+  fetch(DATOS + 'zonas_urbanas.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (fc) {
+    if (!fc) return;
+    var cab = { type: 'FeatureCollection', features: fc.features.filter(function (f) { return f.properties.TIPO === 'cabecera'; }) };
+    var cen = { type: 'FeatureCollection', features: fc.features.filter(function (f) { return f.properties.TIPO !== 'cabecera'; }) };
+    [[cab, 7, 3.5, null], [cen, 5, 2.5, '6 5']].forEach(function (c) {
+      L.geoJSON(c[0], { renderer: lienzoUrbano, interactive: false,
+                        style: { color: '#ffffff', weight: c[1], opacity: 0.9, fill: false } }).addTo(capaUrbana);
+      L.geoJSON(c[0], { renderer: lienzoUrbano, interactive: false,
+                        style: { color: '#1e3a8a', weight: c[2], opacity: 1, dashArray: c[3], fillColor: '#1e3a8a', fillOpacity: 0.08 } }).addTo(capaUrbana);
+    });
+  }).catch(function () {});
+  fetch(DATOS + 'estadisticas.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+    estad = j;
+    if (munActual) pintarResumen(munActual);
+    if (j && /[?&]jerarquia\b/.test(location.search)) $('btnJerarquia').click();   // enlace directo: ?jerarquia
+  }).catch(function () {});
+
+  function pintarResumen(m) {
+    var s = estad && m && estad.municipios[m.codigo];
+    if (!s) { $('resumenMun').style.display = 'none'; return; }
+    $('resumenTitulo').textContent = titulo(m.nombre) + ': áreas';
+    $('resumenDatos').innerHTML = [
+      ['Área total', fmt(s.area_km2, 2) + ' km²'],
+      ['Área urbana', fmt(s.urbana_ha, 1) + ' ha'],
+      ['· Cabecera', fmt(s.cabecera_ha, 1) + ' ha'],
+      ['· Centros poblados', fmt(s.centros_poblados_ha, 1) + ' ha'],
+      ['% urbano', fmt(s.pct_urbana, 2) + ' %'],
+      ['% rural', fmt(s.pct_rural, 2) + ' %'],
+      ['% del área de Boyacá', fmt(s.pct_departamento, 2) + ' %'],
+      ['Jerarquía urbana', '#' + s.jerarquia + ' de ' + Object.keys(estad.municipios).length]
+    ].map(function (r) { return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join('');
+    $('barraUso').firstElementChild.style.width = Math.max(0.5, s.pct_urbana) + '%';
+    $('lyUrb').textContent = 'Urbano ' + fmt(s.pct_urbana, 2) + ' %';
+    $('lyRur').textContent = 'Rural ' + fmt(s.pct_rural, 2) + ' %';
+    $('resumenCat').textContent = s.categoria;
+    $('resumenMun').style.display = 'block';
+  }
+
+  // Tabla de jerarquia urbana (ordenable, clic = ir al municipio, descarga CSV)
+  var COLS = [
+    { k: 'jerarquia', t: '#', num: true, f: function (v) { return v; } },
+    { k: 'nombre', t: 'Municipio' },
+    { k: 'codigo', t: 'Código' },
+    { k: 'urbana_ha', t: 'Área urbana (ha)', num: true, f: function (v) { return fmt(v, 1); } },
+    { k: 'pct_urbana', t: '% urbano', num: true, f: function (v) { return fmt(v, 2); } },
+    { k: 'pct_rural', t: '% rural', num: true, f: function (v) { return fmt(v, 2); } },
+    { k: 'area_km2', t: 'Área total (km²)', num: true, f: function (v) { return fmt(v, 1); } },
+    { k: 'pct_departamento', t: '% de Boyacá', num: true, f: function (v) { return fmt(v, 2); } },
+    { k: 'urbanos', t: 'Predios urbanos', num: true, f: function (v) { return fmt(v, 0); } },
+    { k: 'categoria', t: 'Categoría' }
+  ];
+  var ordenJer = { k: 'jerarquia', asc: true };
+  function filasJer() {
+    return Object.keys(estad.municipios).map(function (c) {
+      var s = estad.municipios[c], m = muns[c] || {};
+      return Object.assign({ codigo: c, nombre: titulo(m.nombre || c), urbanos: m.urbanos || 0 }, s);
+    });
+  }
+  function pintarJerarquiaUrbana() {
+    var filas = filasJer(), maxHa = Math.max.apply(0, filas.map(function (f) { return f.urbana_ha; }));
+    filas.sort(function (a, b) {
+      var x = a[ordenJer.k], y = b[ordenJer.k];
+      var r = typeof x === 'string' ? x.localeCompare(y, 'es') : (x || 0) - (y || 0);
+      return ordenJer.asc ? r : -r;
+    });
+    $('jerCabeza').innerHTML = COLS.map(function (c) {
+      return '<th data-k="' + c.k + '" class="' + (c.num ? 'num' : '') + '">' + c.t +
+             (ordenJer.k === c.k ? (ordenJer.asc ? ' ▲' : ' ▼') : '') + '</th>';
+    }).join('');
+    $('jerCuerpo').innerHTML = filas.map(function (f) {
+      return '<tr data-c="' + f.codigo + '">' + COLS.map(function (c) {
+        var v = c.f ? c.f(f[c.k]) : esc(f[c.k]);
+        if (c.k === 'urbana_ha') v = '<span class="mini-barra" style="width:' + (60 * f.urbana_ha / maxHa).toFixed(1) + 'px"></span>' + v;
+        return '<td class="' + (c.num ? 'num' : '') + '">' + v + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+    var cuenta = {};
+    filas.forEach(function (f) { cuenta[f.categoria] = (cuenta[f.categoria] || 0) + 1; });
+    $('jerCategorias').innerHTML = '<b>Área de Boyacá: ' + fmt(estad.area_departamento_km2, 0) + ' km²</b>' +
+      estad.categorias.map(function (c) {
+        return '<span>' + c[1] + ' (≥ ' + fmt(c[0], 0) + ' ha): <b>' + (cuenta[c[1]] || 0) + '</b></span>';
+      }).join('');
+  }
+  $('jerCabeza').addEventListener('click', function (e) {
+    var th = e.target.closest('th');
+    if (!th) return;
+    var k = th.getAttribute('data-k');
+    ordenJer = { k: k, asc: ordenJer.k === k ? !ordenJer.asc : (k === 'nombre' || k === 'codigo' || k === 'jerarquia') };
+    pintarJerarquiaUrbana();
+  });
+  $('jerCuerpo').addEventListener('click', function (e) {
+    var tr = e.target.closest('tr');
+    if (tr) { $('ventanaJer').hidden = true; ir(tr.getAttribute('data-c')); }
+  });
+  $('btnJerarquia').addEventListener('click', function () {
+    if (!estad) { estado('Las estadísticas de áreas aún no están disponibles.'); return; }
+    pintarJerarquiaUrbana();
+    $('ventanaJer').hidden = false;
+  });
+  $('jerCerrar').addEventListener('click', function () { $('ventanaJer').hidden = true; });
+  $('ventanaJer').addEventListener('click', function (e) { if (e.target === this) this.hidden = true; });
+  $('jerCsv').addEventListener('click', function () {
+    var filas = filasJer().sort(function (a, b) { return a.jerarquia - b.jerarquia; });
+    var cab = ['jerarquia', 'codigo', 'municipio', 'area_urbana_ha', 'cabecera_ha', 'centros_poblados_ha', 'pct_urbano',
+               'pct_rural', 'area_total_km2', 'pct_boyaca', 'predios_urbanos', 'categoria'];
+    var lineas = [cab.join(';')].concat(filas.map(function (f) {
+      return [f.jerarquia, f.codigo, f.nombre, f.urbana_ha, f.cabecera_ha, f.centros_poblados_ha, f.pct_urbana, f.pct_rural,
+              f.area_km2, f.pct_departamento, f.urbanos, f.categoria].map(function (v) { return String(v).replace('.', ','); }).join(';');
+    }));
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + lineas.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'jerarquia_urbana_boyaca.csv';
+    a.click();
+  });
+
   // Clic en el logo: volver a la vista de todo el departamento
   $('logo').addEventListener('click', function () { ir('15'); });
 
@@ -1076,7 +1254,7 @@
   $('btnQuitar').addEventListener('click', deseleccionar);
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
-    deseleccionar();
+    if (!$('ventanaJer').hidden) $('ventanaJer').hidden = true; else deseleccionar();
   });
   mapa.on('click', function (e) { if (!e.originalEvent._enPredio) deseleccionar(); });
 
@@ -1098,6 +1276,7 @@
   // ---------------- paneles
   function pintarRuta(dep, mun) {
     setTimeout(marcarEnLista, 0);
+    pintarResumen(mun && mun.archivo ? mun : null);
     capaResalte.clearLayers();
     var partes = [{ t: 'Colombia', c: '' }];
     if (dep) partes.push({ t: titulo(dep.nombre) + ' · ' + dep.municipios.filter(function (m) { return m.bbox; }).length + ' municipios', c: dep.codigo });
