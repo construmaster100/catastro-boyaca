@@ -207,6 +207,18 @@
   L.control.layers({ 'Calles': calles, 'Satélite': satelite }, null, { position: 'topright' }).addTo(mapa);
   L.control.scale({ imperial: false }).addTo(mapa);
 
+  // Contorno del departamento: linea gruesa siempre visible (debajo de etiquetas, encima de predios)
+  mapa.createPane('contorno').style.zIndex = 450;
+  mapa.getPane('contorno').style.pointerEvents = 'none';
+  var lienzoContorno = L.canvas({ pane: 'contorno', padding: 0.3 });
+  fetch(DATOS + 'departamentos.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (fc) {
+    if (!fc) return;
+    L.geoJSON(fc, { renderer: lienzoContorno, interactive: false,
+                    style: { color: '#ffffff', weight: 8, opacity: 0.85, fill: false } }).addTo(mapa);
+    L.geoJSON(fc, { renderer: lienzoContorno, interactive: false,
+                    style: { color: '#0f4d2e', weight: 4, opacity: 1, fill: false } }).addTo(mapa);
+  }).catch(function () {});
+
   var capaMunicipios = L.layerGroup().addTo(mapa);
   var capaNombres = L.layerGroup().addTo(mapa);     // codigo + nombre de cada municipio
   var capaEtiquetas = L.layerGroup().addTo(mapa);   // sectores, manzanas/veredas o numeros de predio
