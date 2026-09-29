@@ -11,6 +11,8 @@
     --bg: #f5f4f0; --panel: #ffffff; --texto: #1f2328; --suave: #5d6470; --borde: #dcdad3;
     --acento: #b4531f; --acento-suave: #f6e3d6; --ok: #2f7d4f; --no: #a33a3a;
     --predio: #3a6ea5; --marca: #e0782f; --sel: #d11f5a; --nav: #1f2a36; --nav-texto: #f3f1ec;
+    /* uso del suelo (criterio del usuario): colores de la paleta categorica validada */
+    --uso-urb: #2a78d6; --uso-viv: #eda100; --uso-agro: #008300; --uso-atip: #898781;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -78,6 +80,26 @@
   .leyenda-uso { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--suave); }
   .categoria { display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 700; color: #fff; background: #1e3a8a;
                border-radius: 10px; padding: 2px 8px; }
+
+  /* indicadores socioeconomicos */
+  #indicadoresMun { border: 1px solid var(--borde); border-radius: 8px; padding: 10px; display: none; }
+  #indDatos { display: grid; grid-template-columns: 1fr auto; gap: 3px 8px; margin: 0; }
+  #indDatos dt { color: var(--suave); font-size: 11px; }
+  #indDatos dd { margin: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+  #indDatos .grupo { grid-column: 1 / -1; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em;
+                     color: #0f4d2e; font-weight: 700; margin-top: 6px; border-bottom: 1px solid var(--borde); }
+  .fuente-ind { font-size: 10px; color: var(--suave); margin: 8px 0 0; }
+  .fuente-ind a { color: inherit; }
+  .uso-barra { display: flex; height: 12px; border-radius: 6px; overflow: hidden; margin: 4px 0; }
+  .uso-barra i { min-width: 1px; }
+  .uso-tabla { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 4px; }
+  .uso-tabla td { padding: 2px 0; }
+  .uso-tabla td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .uso-tabla i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; }
+  .riesgo { font-weight: 700; padding: 0 6px; border-radius: 8px; color: #fff; }
+  .etq-prov { background: none; border: 0; pointer-events: none; }
+  .etq-prov div { transform: translate(-50%, -50%); white-space: nowrap; font: 800 13px/1 system-ui, sans-serif; letter-spacing: .12em;
+                  text-transform: uppercase; color: #6b4e00; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 6px #fff; }
 
   /* grafico circular (dona) del area de los municipios: paleta categorica validada (7 tonos + gris "otros") */
   :root { --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7;
@@ -315,7 +337,11 @@
     <div id="resultados"></div>
   </section>
   <div class="leyenda">
-    <span><i style="background:var(--predio)"></i>Predios del municipio</span>
+    <b style="font-size:11px;color:var(--texto)">Uso del suelo de los predios</b>
+    <span><i style="background:var(--uso-urb)"></i>Urbano · actividad económica</span>
+    <span><i style="background:var(--uso-viv)"></i>Rural · vivienda (10–300 m²)</span>
+    <span><i style="background:var(--uso-agro)"></i>Rural · agropecuario (&gt; 300 m²)</span>
+    <span><i style="background:var(--uso-atip)"></i>Rural · atípico (&lt; 10 m²)</span>
     <span><i style="background:var(--marca)"></i>Coinciden con el código</span>
     <span><i style="background:var(--sel)"></i>Predio identificado</span>
   </div>
@@ -359,6 +385,13 @@
       <div class="barra-uso" id="barraUso"><i></i></div>
       <div class="leyenda-uso"><span id="lyUrb"></span><span id="lyRur"></span></div>
       <span class="categoria" id="resumenCat"></span>
+    </section>
+    <section id="indicadoresMun">
+      <h2 id="indTitulo">Indicadores socioeconómicos</h2>
+      <div id="indUso"></div>
+      <dl id="indDatos"></dl>
+      <p class="fuente-ind">Fuente: <a href="https://cctunja.org.co/estudios-economicos/boyaca-en-cifras/" target="_blank" rel="noopener">Cámara de
+        Comercio de Tunja, Boyacá en Cifras 2024</a>. Uso del suelo: clasificación de los predios IGAC.</p>
     </section>
     <section id="graficoArea">
       <h2>Área de los municipios en Boyacá</h2>
@@ -642,9 +675,30 @@
     if (capasPredios[m.codigo]) return;
     capasPredios[m.codigo] = L.geoJSON({ type: 'FeatureCollection', features: feats }, {
       renderer: lienzo, smoothFactor: 1.5,
-      style: { color: css('--predio'), weight: 0.6, fillOpacity: 0.07 },
+      style: function (f) { var c = css(USO[usoPredio(f.properties)].color); return { color: c, fillColor: c, weight: 0.6, fillOpacity: 0.13 }; },
       onEachFeature: function (f, capa) { capa.on('click', function (e) { e.originalEvent._enPredio = true; elegir(f, true); }); }
     });
+  }
+
+  // Uso del suelo (criterio del usuario): urbano = actividad economica; rural 10-300 m2 = vivienda;
+  // rural > 300 m2 = agropecuario; rural < 10 m2 = atipico
+  var USO = {
+    urb: { nombre: 'Urbano · actividad económica', color: '--uso-urb' },
+    viv: { nombre: 'Rural · vivienda (10–300 m²)', color: '--uso-viv' },
+    agro: { nombre: 'Rural · agropecuario (> 300 m²)', color: '--uso-agro' },
+    atip: { nombre: 'Rural · atípico (< 10 m²)', color: '--uso-atip' }
+  };
+  function usoPredio(p) {
+    if (p.ZONA === 'URBANO') return 'urb';
+    var a = p.AREA_M2 || 0;
+    return a < 10 ? 'atip' : a <= 300 ? 'viv' : 'agro';
+  }
+  var usoCache = {};
+  function usoMunicipio(codigo) {
+    if (usoCache[codigo] || !cache[codigo]) return usoCache[codigo];
+    var r = { urb: [0, 0], viv: [0, 0], agro: [0, 0], atip: [0, 0] };
+    cache[codigo].forEach(function (f) { var u = usoPredio(f.properties); r[u][0]++; r[u][1] += (f.properties.AREA_M2 || 0) / 1e4; });
+    return (usoCache[codigo] = r);
   }
 
   // Agrupa los predios de un municipio por los primeros "largo" digitos del codigo
@@ -821,6 +875,7 @@
       dibujarMunicipio(mun, feats);
       marcar(c, mun, feats);
       actualizarVista();
+      pintarIndicadores(mun);   // ya con el uso del suelo calculado
     }).catch(function (e) { estado('Error al cargar ' + mun.nombre + ': ' + e.message); });
   }
 
@@ -879,6 +934,7 @@
       ['Anterior', '<code>' + (p.NUMERO_CATASTRAL_ANTERIOR || '—') + '</code>'],
       ['Ubicación', m ? titulo(m.nombre) + ', ' + titulo(m.dep.nombre) : '—'],
       ['Zona', p.ZONA === 'URBANO' ? 'Urbano' : 'Rural'],
+      ['Uso del suelo', '<span style="color:' + css(USO[usoPredio(p)].color) + ';font-weight:700">■</span> ' + USO[usoPredio(p)].nombre],
       [p.ZONA === 'URBANO' ? 'Manzana' : 'Vereda', '<code>' + (p.MANZANA_VEREDA || '—') + '</code>'],
       ['Área', fmt(p.AREA_M2) + ' m²' + (p.AREA_M2 >= 10000 ? ' (' + fmt(p.AREA_M2 / 10000, 4) + ' ha)' : '')],
       ['Coordenadas', fmt(p.LATITUD, 6) + ', ' + fmt(p.LONGITUD, 6)]
@@ -1067,6 +1123,7 @@
       ['Departamento', m ? esc(titulo(m.dep.nombre)) : '—'],
       ['Municipio', m ? esc(titulo(m.nombre)) + ' (' + m.codigo + ')' : '—'],
       ['Zona', p.ZONA === 'URBANO' ? 'Urbana' : 'Rural'],
+      ['Uso del suelo', USO[usoPredio(p)].nombre],
       [p.ZONA === 'URBANO' ? 'Manzana' : 'Vereda', '<span class="mono">' + esc(p.MANZANA_VEREDA || '—') + '</span>'],
       ['Área del terreno', '<b>' + fmt(p.AREA_M2, 2) + ' m²</b>' + (p.AREA_M2 >= 10000 ? ' (' + fmt(p.AREA_M2 / 10000, 4) + ' ha)' : '')],
       ['Perímetro', fmt(geo.perimetro, 2) + ' m'],
@@ -1240,8 +1297,100 @@
     if (j && /[?&]jerarquia\b/.test(location.search)) $('btnJerarquia').click();   // enlace directo: ?jerarquia
   }).catch(function () {});
 
+  // ---------------- provincias e indicadores socioeconomicos (Camara de Comercio de Tunja, Boyaca en Cifras 2024)
+  var indic = null;
+  mapa.createPane('provincias').style.zIndex = 448;
+  mapa.getPane('provincias').style.pointerEvents = 'none';
+  var lienzoProv = L.canvas({ pane: 'provincias', padding: 0.3 });
+  var capaProvincias = L.layerGroup().addTo(mapa);
+  var capaNombresProv = L.layerGroup();
+  controlCapas.addOverlay(capaProvincias, 'Provincias');
+  fetch(DATOS + 'provincias.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (fc) {
+    if (!fc) return;
+    L.geoJSON(fc, { renderer: lienzoProv, interactive: false, style: { color: '#ffffff', weight: 6, opacity: 0.8, fill: false } }).addTo(capaProvincias);
+    L.geoJSON(fc, { renderer: lienzoProv, interactive: false, style: { color: '#b8860b', weight: 3, opacity: 1, dashArray: '10 6', fill: false } }).addTo(capaProvincias);
+    fc.features.forEach(function (f) {
+      var e = f.properties.ETIQUETA;
+      L.marker([e[1], e[0]], { interactive: false, keyboard: false, icon: L.divIcon({
+        className: 'etq-prov', iconSize: null, html: '<div>' + esc(f.properties.PROVINCIA) + '</div>' }) }).addTo(capaNombresProv);
+    });
+    nombresProvincias();
+  }).catch(function () {});
+  function nombresProvincias() {   // los nombres de provincia solo a escala departamental
+    var ver = mapa.hasLayer(capaProvincias) && mapa.getZoom() < 9.5;
+    if (ver && !mapa.hasLayer(capaNombresProv)) capaNombresProv.addTo(mapa);
+    if (!ver && mapa.hasLayer(capaNombresProv)) mapa.removeLayer(capaNombresProv);
+  }
+  mapa.on('zoomend overlayadd overlayremove', nombresProvincias);
+
+  fetch(DATOS + 'indicadores.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+    indic = j;
+    if (!j) return;
+    // provincia en el buscador de municipios (tambien se puede filtrar por provincia)
+    Array.prototype.forEach.call($('itemsMun').children, function (li) {
+      var d = j.municipios[li.dataset.codigo];
+      if (d && d.provincia) { li.dataset.texto += ' ' + sinTildes(d.provincia); li.title += ' · Provincia ' + d.provincia; }
+    });
+    pintarResumen(munActual);
+  }).catch(function () {});
+
+  var COLOR_RIESGO = { 'Sin riesgo': '#0ca30c', 'Bajo': '#7a9a01', 'Medio': '#c98500', 'Alto': '#d03b3b', 'Inviable sanitariamente': '#7a1030' };
+  function pintarIndicadores(m) {
+    var d = indic && m && indic.municipios[m.codigo];
+    if (!d) { $('indicadoresMun').style.display = 'none'; return; }
+    var s = estad && estad.municipios[m.codigo];
+    var dens = s && s.area_km2 ? d.poblacion / s.area_km2 : null;
+    var vaHab = d.valor_agregado && d.poblacion ? d.valor_agregado * 1000 / d.poblacion : null;
+    var salud = (d.regimen_contributivo || 0) + (d.regimen_especial || 0) + (d.regimen_subsidiado || 0);
+    $('indTitulo').textContent = titulo(m.nombre) + ' · Provincia ' + d.provincia;
+    // uso del suelo del municipio (si sus predios ya estan cargados)
+    var u = usoMunicipio(m.codigo);
+    if (u) {
+      var tot = u.urb[0] + u.viv[0] + u.agro[0] + u.atip[0];
+      $('indUso').innerHTML = '<div class="uso-barra">' + ['urb', 'viv', 'agro', 'atip'].map(function (k) {
+          return '<i style="width:' + (100 * u[k][0] / tot) + '%;background:var(' + USO[k].color + ')" title="' + USO[k].nombre + '"></i>'; }).join('') +
+        '</div><table class="uso-tabla">' + ['urb', 'viv', 'agro', 'atip'].map(function (k) {
+          return '<tr><td><i style="background:var(' + USO[k].color + ')"></i>' + USO[k].nombre + '</td><td class="n">' + fmt(u[k][0], 0) +
+                 '</td><td class="n">' + (k === 'atip' ? '' : fmt(u[k][1], 1) + ' ha') + '</td></tr>'; }).join('') + '</table>';
+    } else {
+      $('indUso').innerHTML = '<p class="fuente-ind">Uso del suelo: se calcula al cargar los predios del municipio…</p>';
+    }
+    var riesgo = d.riesgo_agua ? '<span class="riesgo" style="background:' + (COLOR_RIESGO[d.riesgo_agua] || '#898781') + '">' + esc(d.riesgo_agua) + '</span>' : '—';
+    var filas = [
+      ['g', 'Población 2024'],
+      ['Habitantes', fmt(d.poblacion, 0)],
+      ['Hombres / Mujeres', fmt(d.hombres, 0) + ' / ' + fmt(d.mujeres, 0)],
+      ['Densidad', dens != null ? fmt(dens, 1) + ' hab/km²' : '—'],
+      ['g', 'Economía'],
+      ['Valor agregado', fmt(d.valor_agregado, 1) + ' mil millones $'],
+      ['Por habitante', vaHab != null ? fmt(vaHab, 1) + ' millones $' : '—'],
+      ['Empresas renovadas', fmt(d.empresas_renovadas, 0)],
+      ['Empresas nuevas (matrículas)', fmt(d.empresas_matriculadas, 0)],
+      ['Empleos formales (COMFABOY)', fmt(d.comfaboy_empleos, 0)],
+      ['Colocaciones financieras', fmt(d.colocaciones, 0) + ' millones $'],
+      ['Puesto ICM 2023', d.icm_puesto != null ? '#' + d.icm_puesto : '—'],
+      ['g', 'Agropecuario'],
+      ['Producción agrícola 2023', fmt(d.produccion_agricola_ton, 0) + ' t'],
+      ['Bovinos', fmt(d.bovinos, 0)],
+      ['g', 'Social'],
+      ['Puntaje ICFES', fmt(d.icfes, 1)],
+      ['Matrícula escolar', fmt(d.matricula_escolar, 0)],
+      ['IPS / camas', fmt(d.ips, 0) + ' / ' + fmt(d.camas, 0)],
+      ['Afiliados a salud', fmt(salud, 0)],
+      ['g', 'Agua y riesgo'],
+      ['Acueductos', fmt(d.acueductos, 0)],
+      ['Riesgo del agua (IRCA)', riesgo],
+      ['Eventos de riesgo', fmt(d.eventos_riesgo, 0)]
+    ];
+    $('indDatos').innerHTML = filas.map(function (r) {
+      return r[0] === 'g' ? '<div class="grupo">' + r[1] + '</div>' : '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>';
+    }).join('');
+    $('indicadoresMun').style.display = 'block';
+  }
+
   function pintarResumen(m) {
     pintarGrafico(m);
+    pintarIndicadores(m);
     var s = estad && m && estad.municipios[m.codigo];
     if (!s) { $('resumenMun').style.display = 'none'; return; }
     $('resumenTitulo').textContent = titulo(m.nombre) + ': áreas';
@@ -1341,19 +1490,25 @@
     { k: 'jerarquia', t: '#', num: true, f: function (v) { return v; } },
     { k: 'nombre', t: 'Municipio' },
     { k: 'codigo', t: 'Código' },
+    { k: 'provincia', t: 'Provincia' },
     { k: 'urbana_ha', t: 'Área urbana (ha)', num: true, f: function (v) { return fmt(v, 1); } },
     { k: 'pct_urbana', t: '% urbano', num: true, f: function (v) { return fmt(v, 2); } },
     { k: 'pct_rural', t: '% rural', num: true, f: function (v) { return fmt(v, 2); } },
     { k: 'area_km2', t: 'Área total (km²)', num: true, f: function (v) { return fmt(v, 1); } },
     { k: 'pct_departamento', t: '% de Boyacá', num: true, f: function (v) { return fmt(v, 2); } },
     { k: 'urbanos', t: 'Predios urbanos', num: true, f: function (v) { return fmt(v, 0); } },
+    { k: 'poblacion', t: 'Población 2024', num: true, f: function (v) { return fmt(v, 0); } },
+    { k: 'densidad', t: 'Hab/km²', num: true, f: function (v) { return fmt(v, 1); } },
+    { k: 'valor_agregado', t: 'Valor agregado (mil mill. $)', num: true, f: function (v) { return fmt(v, 1); } },
     { k: 'categoria', t: 'Categoría' }
   ];
   var ordenJer = { k: 'jerarquia', asc: true };
   function filasJer() {
     return Object.keys(estad.municipios).map(function (c) {
-      var s = estad.municipios[c], m = muns[c] || {};
-      return Object.assign({ codigo: c, nombre: titulo(m.nombre || c), urbanos: m.urbanos || 0 }, s);
+      var s = estad.municipios[c], m = muns[c] || {}, d = (indic && indic.municipios[c]) || {};
+      return Object.assign({ codigo: c, nombre: titulo(m.nombre || c), urbanos: m.urbanos || 0, provincia: d.provincia || '',
+                             poblacion: d.poblacion, valor_agregado: d.valor_agregado,
+                             densidad: d.poblacion && s.area_km2 ? d.poblacion / s.area_km2 : null }, s);
     });
   }
   function pintarJerarquiaUrbana() {
@@ -1402,10 +1557,12 @@
   $('jerCsv').addEventListener('click', function () {
     var filas = filasJer().sort(function (a, b) { return a.jerarquia - b.jerarquia; });
     var cab = ['jerarquia', 'codigo', 'municipio', 'area_urbana_ha', 'cabecera_ha', 'centros_poblados_ha', 'pct_urbano',
-               'pct_rural', 'area_total_km2', 'pct_boyaca', 'predios_urbanos', 'categoria'];
+               'pct_rural', 'area_total_km2', 'pct_boyaca', 'predios_urbanos', 'categoria', 'provincia', 'poblacion_2024',
+               'densidad_hab_km2', 'valor_agregado_miles_millones'];
     var lineas = [cab.join(';')].concat(filas.map(function (f) {
       return [f.jerarquia, f.codigo, f.nombre, f.urbana_ha, f.cabecera_ha, f.centros_poblados_ha, f.pct_urbana, f.pct_rural,
-              f.area_km2, f.pct_departamento, f.urbanos, f.categoria].map(function (v) { return String(v).replace('.', ','); }).join(';');
+              f.area_km2, f.pct_departamento, f.urbanos, f.categoria, f.provincia, f.poblacion,
+              f.densidad != null ? f.densidad.toFixed(1) : '', f.valor_agregado].map(function (v) { return String(v).replace('.', ','); }).join(';');
     }));
     var a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob(['﻿' + lineas.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
