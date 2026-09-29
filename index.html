@@ -96,9 +96,17 @@
   .leyenda { display: grid; gap: 3px; font-size: 11px; color: var(--suave); }
   .leyenda i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
   .leaflet-container { background: var(--bg); font: inherit; }
-  .etiqueta-mun { background: transparent; border: 0; box-shadow: none; color: var(--texto); font-weight: 600; font-size: 11px;
-                  text-shadow: 0 0 3px var(--panel), 0 0 3px var(--panel); }
-  .etiqueta-mun::before { display: none; }
+  /* identificadores sobre el mapa */
+  .etq { background: none; border: 0; }
+  .etq div { transform: translate(-50%, -50%); display: inline-block; white-space: nowrap; cursor: pointer;
+             font: 600 11px/1.2 ui-monospace, Consolas, monospace; color: var(--texto); background: var(--panel);
+             border: 1px solid var(--borde); border-radius: 10px; padding: 2px 6px; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+  .etq div small { font-weight: 400; color: var(--suave); margin-left: 3px; font-family: system-ui, sans-serif; }
+  .etq.mun div { font-size: 12px; border-color: var(--acento); text-align: center; line-height: 1.15; }
+  .etq.mun div b { color: var(--acento); display: block; }
+  .etq.sector div { border-color: var(--acento); background: var(--acento-suave); }
+  .etq.manzana div { font-size: 10px; padding: 1px 4px; }
+  .etq.predio div { font-size: 9px; padding: 0 3px; border-radius: 4px; box-shadow: none; opacity: .9; }
 
   @media (max-width: 800px) {
     body { overflow: auto; height: auto; grid-template-columns: 60px 1fr; grid-template-rows: 60px 60vh auto;
@@ -167,8 +175,12 @@
   var DATOS = 'datos/';
   var COLOMBIA = [[-4.3, -79.1], [13.5, -66.8]];
   var MAX_LISTA = 300;
-  var ZOOM_VECINOS = 13;   // desde este zoom se cargan los municipios vecinos visibles
-  var ZOOM_OCULTAR = 11;   // por debajo se ocultan los predios (salvo el municipio buscado)
+  // Niveles de zoom: que se muestra en cada uno
+  var ZOOM_REGIONES = 11;  // carga municipios visibles y muestra regiones por sector (zona-sector)
+  var ZOOM_MANZANAS = 14;  // identificadores de manzana / vereda
+  var ZOOM_PREDIOS = 15;   // poligonos de los predios
+  var ZOOM_NUMEROS = 18;   // numero de terreno de cada predio
+  var MAX_ETIQUETAS = 500;
   var MAX_VISIBLES = 3;
   var MAX_CACHE = 6;
   // Departamentos proyectados: aparecen en el selector pero aun sin datos
@@ -195,6 +207,8 @@
   L.control.scale({ imperial: false }).addTo(mapa);
 
   var capaMunicipios = L.layerGroup().addTo(mapa);
+  var capaNombres = L.layerGroup().addTo(mapa);     // codigo + nombre de cada municipio
+  var capaEtiquetas = L.layerGroup().addTo(mapa);   // sectores, manzanas/veredas o numeros de predio
   var capasPredios = {};
   var capaMarca = null, capaSel = null;
 
@@ -242,6 +256,7 @@
       d.municipios.forEach(function (m) { m.dep = d; muns[m.codigo] = m; });
     });
     llenarDeps();
+    crearNombresMunicipios();
     var inicial = limpio(location.hash.slice(1)) || (indice.departamentos.length === 1 ? indice.departamentos[0].codigo : '');
     $('codigo').value = inicial;
     buscar();
@@ -290,51 +305,132 @@
     return pendientes[m.codigo];
   }
 
+  // Crea la capa de poligonos (no la muestra: eso lo decide actualizarVista segun el zoom)
   function dibujarMunicipio(m, feats) {
-    if (capasPredios[m.codigo]) {
-      if (!mapa.hasLayer(capasPredios[m.codigo])) capasPredios[m.codigo].addTo(mapa);
-      return;
-    }
+    if (capasPredios[m.codigo]) return;
     capasPredios[m.codigo] = L.geoJSON({ type: 'FeatureCollection', features: feats }, {
       renderer: lienzo, smoothFactor: 1.5,
       style: { color: css('--predio'), weight: 0.6, fillOpacity: 0.07 },
       onEachFeature: function (f, capa) { capa.on('click', function () { elegir(f, true); }); }
-    }).addTo(mapa);
-    if (capaMarca) capaMarca.bringToFront();
-    if (capaSel) capaSel.bringToFront();
+    });
   }
 
-  // ---------------- navegacion continua
+  // Agrupa los predios de un municipio por los primeros "largo" digitos del codigo
+  // (9 = zona+sector, 17 = manzana/vereda). Se calcula una vez y se guarda.
+  var grupos = {};
+  function agrupar(m, largo) {
+    var clave = m.codigo + ':' + largo;
+    if (grupos[clave]) return grupos[clave];
+    var acum = {};
+    (cache[m.codigo] || []).forEach(function (f) {
+      var p = f.properties, cod = (p.NUMERO_CATASTRAL || '').slice(0, largo);
+      if (cod.length < largo || p.LATITUD == null) return;
+      var g = acum[cod] || (acum[cod] = { codigo: cod, n: 0, lat: 0, lng: 0 });
+      g.n++; g.lat += p.LATITUD; g.lng += p.LONGITUD;
+    });
+    grupos[clave] = Object.keys(acum).map(function (k) {
+      var g = acum[k]; g.lat /= g.n; g.lng /= g.n; return g;
+    });
+    return grupos[clave];
+  }
+
+  function etiqueta(lat, lng, clase, html, titulo, codigo) {
+    return L.marker([lat, lng], {
+      icon: L.divIcon({ className: 'etq ' + clase, html: '<div title="' + titulo + '">' + html + '</div>', iconSize: null }),
+      keyboard: false
+    }).on('click', function () { ir(codigo); });
+  }
+
+  // ---------------- navegacion por niveles de zoom
   function cruza(b, v) { return b && b[0] <= v.getEast() && b[2] >= v.getWest() && b[1] <= v.getNorth() && b[3] >= v.getSouth(); }
   function distancia(m, c) {
     return Math.pow((m.bbox[0] + m.bbox[2]) / 2 - c.lng, 2) + Math.pow((m.bbox[1] + m.bbox[3]) / 2 - c.lat, 2);
   }
-  mapa.on('moveend', function () {
-    if (!indice) return;
-    var z = mapa.getZoom();
-    // Alejado: se ocultan los predios de los vecinos para que el mapa se mueva fluido
-    if (z < ZOOM_OCULTAR) {
-      Object.keys(capasPredios).forEach(function (k) {
-        if (!munActual || k !== munActual.codigo) { mapa.removeLayer(capasPredios[k]); delete capasPredios[k]; }
-      });
-      return;
-    }
-    if (z < ZOOM_VECINOS) return;
+  function municipiosEnVista() {
     var v = mapa.getBounds(), c = v.getCenter();
-    var visibles = Object.keys(muns).map(function (k) { return muns[k]; })
+    var lista = Object.keys(muns).map(function (k) { return muns[k]; })
       .filter(function (m) { return m.archivo && cruza(m.bbox, v); })
       .sort(function (a, b) { return distancia(a, c) - distancia(b, c); })
       .slice(0, MAX_VISIBLES);
-    var quedan = visibles.map(function (m) { return m.codigo; });
-    if (munActual) quedan.push(munActual.codigo);
+    if (munActual && lista.indexOf(munActual) === -1 && cruza(munActual.bbox, v)) lista.unshift(munActual);
+    return lista;
+  }
+
+  var pintando = null;
+  function actualizarVista() {
+    if (!indice) return;
+    cancelAnimationFrame(pintando);
+    pintando = requestAnimationFrame(pintarVista);
+  }
+  function pintarVista() {
+    var z = mapa.getZoom(), v = mapa.getBounds().pad(0.1);
+    // Nombres y codigos de municipio: solo mientras no se esta a nivel de manzana
+    if (z < ZOOM_MANZANAS) { if (!mapa.hasLayer(capaNombres)) capaNombres.addTo(mapa); }
+    else if (mapa.hasLayer(capaNombres)) mapa.removeLayer(capaNombres);
+
+    var enVista = z >= ZOOM_REGIONES ? municipiosEnVista()
+                : (munActual && cruza(munActual.bbox, mapa.getBounds()) ? [munActual] : []);
+    var codigosVista = enVista.map(function (m) { return m.codigo; });
+
+    // Poligonos de predios: solo a nivel de calle
     Object.keys(capasPredios).forEach(function (k) {
-      if (quedan.indexOf(k) === -1) { mapa.removeLayer(capasPredios[k]); delete capasPredios[k]; }
+      var mostrar = z >= ZOOM_PREDIOS && codigosVista.indexOf(k) !== -1;
+      if (mostrar && !mapa.hasLayer(capasPredios[k])) capasPredios[k].addTo(mapa);
+      if (!mostrar && mapa.hasLayer(capasPredios[k])) mapa.removeLayer(capasPredios[k]);
+      if (codigosVista.indexOf(k) === -1 && (!munActual || k !== munActual.codigo)) delete capasPredios[k];
     });
-    visibles.forEach(function (m) {
-      cargarMunicipio(m).then(function (feats) { if (cruza(m.bbox, mapa.getBounds())) dibujarMunicipio(m, feats); })
-        .catch(function (e) { estado('Error al cargar ' + m.nombre + ': ' + e.message); });
+    if (capaMarca) capaMarca.bringToFront();
+    if (capaSel) capaSel.bringToFront();
+
+    // Identificadores
+    capaEtiquetas.clearLayers();
+    var total = 0;
+    enVista.forEach(function (m) {
+      if (!cache[m.codigo]) {
+        cargarMunicipio(m).then(function (feats) { dibujarMunicipio(m, feats); actualizarVista(); })
+          .catch(function (e) { estado('Error al cargar ' + m.nombre + ': ' + e.message); });
+        return;
+      }
+      dibujarMunicipio(m, cache[m.codigo]);
+      if (z >= ZOOM_PREDIOS && !mapa.hasLayer(capasPredios[m.codigo])) capasPredios[m.codigo].addTo(mapa);
+      if (z < ZOOM_MANZANAS) {
+        agrupar(m, 9).forEach(function (g) {          // zona + sector
+          var zona = g.codigo.slice(5, 7), sector = g.codigo.slice(7, 9);
+          capaEtiquetas.addLayer(etiqueta(g.lat, g.lng, 'sector', zona + '-' + sector + '<small>' + fmt(g.n, 0) + '</small>',
+            titulo(m.nombre) + ' · zona ' + zona + (zona === '00' ? ' (rural)' : zona === '01' ? ' (urbana)' : '') +
+            ' · sector ' + sector + ' · ' + g.n + ' predios · ' + g.codigo, g.codigo));
+        });
+      } else if (z < ZOOM_NUMEROS) {
+        agrupar(m, 17).forEach(function (g) {         // manzana / vereda
+          if (total >= MAX_ETIQUETAS || !v.contains([g.lat, g.lng])) return;
+          total++;
+          capaEtiquetas.addLayer(etiqueta(g.lat, g.lng, 'manzana', g.codigo.slice(13, 17),
+            (g.codigo.slice(5, 7) === '00' ? 'Vereda ' : 'Manzana ') + g.codigo.slice(13, 17) + ' · ' + g.n + ' predios · ' + g.codigo, g.codigo));
+        });
+      } else {
+        cache[m.codigo].forEach(function (f) {        // numero de terreno de cada predio
+          var p = f.properties;
+          if (total >= MAX_ETIQUETAS || p.LATITUD == null || !v.contains([p.LATITUD, p.LONGITUD])) return;
+          total++;
+          capaEtiquetas.addLayer(etiqueta(p.LATITUD, p.LONGITUD, 'predio', p.NUMERO_CATASTRAL.slice(17, 21),
+            p.NUMERO_CATASTRAL, p.NUMERO_CATASTRAL));
+        });
+      }
     });
-  });
+  }
+  mapa.on('moveend', actualizarVista);
+
+  function crearNombresMunicipios() {
+    capaNombres.clearLayers();
+    Object.keys(muns).forEach(function (k) {
+      var m = muns[k];
+      if (!m.bbox) return;
+      var c = limites[m.codigo] ? L.geoJSON(limites[m.codigo]).getBounds().getCenter()
+                                : L.latLng((m.bbox[1] + m.bbox[3]) / 2, (m.bbox[0] + m.bbox[2]) / 2);
+      capaNombres.addLayer(etiqueta(c.lat, c.lng, 'mun', '<b>' + m.codigo + '</b>' + titulo(m.nombre),
+        titulo(m.nombre) + ' · ' + fmt(m.urbanos + m.rurales, 0) + ' predios', m.codigo));
+    });
+  }
 
   // ---------------- busqueda
   var espera = null;
@@ -367,6 +463,7 @@
       else if (c.length >= 5 && !mun) estado('No existe el municipio ' + c.slice(0, 5) + '.');
       else if (mun) estado(titulo(mun.nombre) + ': sin predios en el IGAC (gestor catastral propio).');
       else estado('');
+      actualizarVista();
       return;
     }
     mostrarMunicipios(mun.dep, mun, true);
@@ -374,6 +471,7 @@
       if (limpio($('codigo').value) !== c) return;
       dibujarMunicipio(mun, feats);
       marcar(c, mun, feats);
+      actualizarVista();
     }).catch(function (e) { estado('Error al cargar ' + mun.nombre + ': ' + e.message); });
   }
 
@@ -454,7 +552,7 @@
   // ---------------- paneles
   function pintarRuta(dep, mun) {
     var partes = [{ t: 'Colombia', c: '' }];
-    if (dep) partes.push({ t: titulo(dep.nombre), c: dep.codigo });
+    if (dep) partes.push({ t: titulo(dep.nombre) + ' · ' + dep.municipios.filter(function (m) { return m.bbox; }).length + ' municipios', c: dep.codigo });
     if (mun) partes.push({ t: titulo(mun.nombre), c: mun.codigo });
     $('ruta').innerHTML = partes.map(function (p, i) {
       return (i ? '<span class="sep">›</span>' : '') +
