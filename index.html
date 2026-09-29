@@ -117,6 +117,31 @@
                    border-radius: 6px; padding: 3px 7px; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
   .area-lote div small { display: block; font-weight: 500; font-size: 10px; opacity: .9; }
   .leaflet-container.lejos .cota, .leaflet-container.lejos .area-lote { display: none; }
+  /* portada de bienvenida con el banner */
+  #portada { position: fixed; inset: 0; z-index: 5000; background: rgba(15, 30, 22, .72); display: flex;
+             align-items: center; justify-content: center; padding: 16px; backdrop-filter: blur(3px); }
+  #portada[hidden] { display: none; }
+  #portada .tarjeta { background: var(--panel); color: var(--texto); border-radius: 14px; overflow: hidden; width: min(980px, 100%);
+                      max-height: calc(100vh - 32px); overflow-y: auto; box-shadow: 0 12px 40px rgba(0,0,0,.45); }
+  #portada .tarjeta > img { display: block; width: 100%; aspect-ratio: 5 / 2; object-fit: cover; }
+  #portada .cuerpo { padding: 18px 24px 20px; display: grid; gap: 14px; }
+  #portada .cuerpo p { margin: 0; font-size: 15px; line-height: 1.5; }
+  #portada .cifras { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  #portada .cifras div { background: var(--bg); border: 1px solid var(--borde); border-radius: 10px; padding: 10px 12px; }
+  #portada .cifras b { display: block; font-size: 22px; color: #0f4d2e; font-variant-numeric: tabular-nums; }
+  #portada .cifras span { font-size: 12px; color: var(--suave); }
+  #portada .entrar { display: flex; gap: 8px; flex-wrap: wrap; }
+  #portada .entrar input { flex: 1 1 260px; font: 15px ui-monospace, Consolas, monospace; padding: 10px 12px; border-radius: 8px;
+                           border: 1px solid var(--borde); background: var(--bg); color: var(--texto); }
+  #portada .entrar button { font: 700 15px system-ui, sans-serif; padding: 10px 22px; border-radius: 8px; border: 0; cursor: pointer;
+                            background: #0f4d2e; color: #fff; }
+  #portada .entrar button:hover { background: #166b40; }
+  #portada .pie { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--suave); }
+  #portada .pie label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  #logo { cursor: pointer; }
+  @media (max-width: 640px) { #portada .cifras { grid-template-columns: 1fr; } #portada .cuerpo { padding: 14px 16px; } }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) #portada .cifras b { color: #7fd1a3; } }
+  :root[data-theme="dark"] #portada .cifras b { color: #7fd1a3; }
   /* grilla de coordenadas */
   .grilla-etq { background: none; border: 0; pointer-events: none; }
   .grilla-etq div { position: absolute; white-space: nowrap; font: 600 10px/1 ui-monospace, Consolas, monospace;
@@ -143,7 +168,30 @@
 </style>
 </head>
 <body>
-<div id="logo">
+<div id="portada" hidden role="dialog" aria-modal="true" aria-label="Bienvenida">
+  <div class="tarjeta">
+    <img src="img/banner_web.jpg" alt="Catastro Boyacá">
+    <div class="cuerpo">
+      <p>Buscador e identificador de predios del departamento de <b>Boyacá</b>. Consulte cualquier predio por su
+         número predial, o navegue por municipio, sector y manzana. Datos abiertos del IGAC.</p>
+      <div class="cifras">
+        <div><b id="cifMun">—</b><span>municipios</span></div>
+        <div><b id="cifUrb">—</b><span>predios urbanos</span></div>
+        <div><b id="cifRur">—</b><span>predios rurales</span></div>
+      </div>
+      <form class="entrar" id="formPortada">
+        <input id="codigoPortada" inputmode="numeric" autocomplete="off" placeholder="Número predial (opcional)">
+        <button type="submit">Entrar al buscador →</button>
+      </form>
+      <div class="pie">
+        <label><input type="checkbox" id="noPortada"> No mostrar esta portada al abrir</label>
+        <span>Fuente: IGAC · Datos abiertos catastrales</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="logo" title="Ver portada">
   <img src="img/logo_web.png" alt="Catastro Boyacá" width="250" height="100">
 </div>
 
@@ -367,6 +415,7 @@
     });
     llenarDeps();
     crearNombresMunicipios();
+    llenarCifras();
     var inicial = limpio(location.hash.slice(1)) || (indice.departamentos.length === 1 ? indice.departamentos[0].codigo : '');
     $('codigo').value = inicial;
     buscar();
@@ -876,6 +925,36 @@
   // Enlace directo a la ficha: index.html?ficha#<numero predial de 30 digitos>
   var fichaDirecta = /[?&]ficha\b/.test(location.search);
 
+  // ---------------- portada (banner de bienvenida)
+  function leerPref() { try { return localStorage.getItem('ocultarPortada') === '1'; } catch (e) { return false; } }
+  function guardarPref(v) { try { localStorage.setItem('ocultarPortada', v ? '1' : '0'); } catch (e) {} }
+  function llenarCifras() {
+    var mun = 0, urb = 0, rur = 0;
+    indice.departamentos.forEach(function (d) {
+      d.municipios.forEach(function (m) { if (m.bbox) { mun++; urb += m.urbanos; rur += m.rurales; } });
+    });
+    $('cifMun').textContent = fmt(mun, 0);
+    $('cifUrb').textContent = fmt(urb, 0);
+    $('cifRur').textContent = fmt(rur, 0);
+  }
+  function mostrarPortada() {
+    $('noPortada').checked = leerPref();
+    $('portada').hidden = false;
+    setTimeout(function () { $('codigoPortada').focus(); }, 50);
+  }
+  function cerrarPortada() { $('portada').hidden = true; }
+  $('formPortada').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var c = limpio($('codigoPortada').value);
+    cerrarPortada();
+    if (c) ir(c);
+  });
+  $('noPortada').addEventListener('change', function () { guardarPref(this.checked); });
+  $('portada').addEventListener('click', function (e) { if (e.target === this) cerrarPortada(); });
+  $('logo').addEventListener('click', mostrarPortada);
+  // Se muestra al abrir, salvo que el enlace ya traiga un codigo o el usuario la haya ocultado
+  if (!location.hash && !fichaDirecta && !leerPref()) mostrarPortada();
+
   // Quitar la seleccion: vuelve al nivel de municipio sin mover el mapa
   function deseleccionar() {
     if (!seleccion && !capaMarca) return;
@@ -893,7 +972,10 @@
     estado('');
   }
   $('btnQuitar').addEventListener('click', deseleccionar);
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') deseleccionar(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    if (!$('portada').hidden) cerrarPortada(); else deseleccionar();
+  });
   mapa.on('click', function (e) { if (!e.originalEvent._enPredio) deseleccionar(); });
 
   $('btnCopiar').addEventListener('click', function () {
