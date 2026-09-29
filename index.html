@@ -40,7 +40,16 @@
   #filtroMun { width: 100%; font: inherit; color: var(--texto); background: var(--bg); border: 1px solid var(--borde);
                border-radius: 6px; padding: 6px 8px; }
   #filtroMun:focus { outline: 2px solid var(--acento); outline-offset: -1px; }
-  #itemsMun { list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; flex: 1; }
+  #listaMun .cabeza { position: relative; }
+  #listaMun .cuerpo-der { padding: 12px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 12px; }
+  #listaMun .cuerpo-der > * { flex-shrink: 0; }
+  #listaMun .ayuda-der { font-size: 11px; color: var(--suave); margin: 0; }
+  /* desplegable del selector */
+  #itemsMun { list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; position: absolute; left: 12px; right: 12px;
+              top: 66px; max-height: min(60vh, 420px); background: var(--panel); border: 1px solid var(--borde);
+              border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.22); z-index: 1500; }
+  #itemsMun[hidden] { display: none; }
+  #itemsMun li.activo { background: var(--acento-suave); outline: 1px solid var(--acento); outline-offset: -1px; }
   #itemsMun li { display: grid; grid-template-columns: 44px 1fr auto; gap: 6px; align-items: baseline; padding: 5px 12px;
                  cursor: pointer; border-left: 3px solid transparent; }
   #itemsMun li:hover { background: var(--acento-suave); }
@@ -63,6 +72,35 @@
   .leyenda-uso { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--suave); }
   .categoria { display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 700; color: #fff; background: #1e3a8a;
                border-radius: 10px; padding: 2px 8px; }
+
+  /* grafico circular (dona) del area de los municipios: paleta categorica validada (7 tonos + gris "otros") */
+  :root { --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7;
+          --s-otros: #c3c2b7; --sup-graf: #fcfcfb; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9;
+    --s-otros: #52514e; --sup-graf: #1a1a19; } }
+  :root[data-theme="dark"] { --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300;
+                             --s7: #9085e9; --s-otros: #52514e; --sup-graf: #1a1a19; }
+  #graficoArea { border: 1px solid var(--borde); border-radius: 8px; padding: 10px; background: var(--sup-graf); }
+  .dona { position: relative; width: 200px; margin: 4px auto 6px; }
+  .dona svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .dona svg path { stroke: var(--sup-graf); stroke-width: 2; cursor: pointer; transition: transform .15s; transform-origin: 110px 110px; }
+  .dona svg path.actual { stroke: var(--texto); stroke-width: 2.5; }
+  .dona-centro { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+                 text-align: center; pointer-events: none; padding: 0 58px; }
+  .dona-centro b { font-size: 18px; font-variant-numeric: tabular-nums; color: var(--texto); line-height: 1.1; }
+  .dona-centro span { font-size: 10.5px; color: var(--suave); line-height: 1.2; }
+  .dona-tip { position: absolute; z-index: 5; pointer-events: none; background: var(--panel); color: var(--texto);
+              border: 1px solid var(--borde); border-radius: 6px; padding: 5px 8px; font-size: 11px; white-space: nowrap;
+              box-shadow: 0 4px 12px rgba(0,0,0,.18); transform: translate(-50%, calc(-100% - 8px)); }
+  .dona-tip b { font-variant-numeric: tabular-nums; }
+  .dona-leyenda { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 11px; }
+  .dona-leyenda li { display: grid; grid-template-columns: 10px 1fr auto; gap: 6px; align-items: center; padding: 2px 4px;
+                     border-radius: 4px; cursor: pointer; color: var(--texto); }
+  .dona-leyenda li:hover, .dona-leyenda li.actual { background: var(--acento-suave); }
+  .dona-leyenda li.actual { font-weight: 700; }
+  .dona-leyenda i { width: 10px; height: 10px; border-radius: 2px; }
+  .dona-leyenda small { color: var(--suave); font-variant-numeric: tabular-nums; }
 
   /* ventana de jerarquia urbana */
   #ventanaJer { position: fixed; inset: 0; z-index: 5000; background: rgba(15, 30, 22, .6); display: flex;
@@ -249,13 +287,6 @@
     <div id="segmentos"></div>
   </section>
   <div id="estado"></div>
-  <section id="resumenMun">
-    <h2 id="resumenTitulo">Resumen del municipio</h2>
-    <dl id="resumenDatos"></dl>
-    <div class="barra-uso" id="barraUso"><i></i></div>
-    <div class="leyenda-uso"><span id="lyUrb"></span><span id="lyRur"></span></div>
-    <span class="categoria" id="resumenCat"></span>
-  </section>
   <section>
     <h2>Ubicación del código</h2>
     <ol id="jerarquia"></ol>
@@ -304,10 +335,27 @@
 <section id="listaMun" aria-label="Municipios">
   <div class="cabeza">
     <h2>Municipios <span id="cuentaMun"></span></h2>
-    <input id="filtroMun" type="search" autocomplete="off" placeholder="Buscar municipio o código…">
+    <input id="filtroMun" type="search" autocomplete="off" placeholder="Buscar municipio o código…"
+           role="combobox" aria-expanded="false" aria-controls="itemsMun">
+    <ul id="itemsMun" role="listbox" hidden></ul>
     <button id="btnJerarquia" type="button">📊 Jerarquía urbana y áreas</button>
   </div>
-  <ul id="itemsMun"></ul>
+  <div class="cuerpo-der" id="cuerpoDer">
+    <p class="ayuda-der" id="ayudaDer">Escriba el nombre o el código DANE del municipio y elíjalo de la lista (↑ ↓ y Enter).</p>
+    <section id="resumenMun">
+      <h2 id="resumenTitulo">Resumen del municipio</h2>
+      <dl id="resumenDatos"></dl>
+      <div class="barra-uso" id="barraUso"><i></i></div>
+      <div class="leyenda-uso"><span id="lyUrb"></span><span id="lyRur"></span></div>
+      <span class="categoria" id="resumenCat"></span>
+    </section>
+    <section id="graficoArea">
+      <h2>Área de los municipios en Boyacá</h2>
+      <div class="dona"><svg id="donaSvg" viewBox="0 0 220 220" role="img" aria-label="Gráfico circular del área de los municipios"></svg>
+        <div class="dona-centro" id="donaCentro"></div><div class="dona-tip" id="donaTip" hidden></div></div>
+      <ul class="dona-leyenda" id="donaLeyenda"></ul>
+    </section>
+  </div>
 </section>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -354,7 +402,7 @@
   var rasterActivo = true;
   function opacidadRaster() {
     var z = mapa.getZoom();
-    capaRaster.setOpacity(z < 10 ? 0.85 : z < 11 ? 0.55 : z < 12 ? 0.3 : 0);
+    capaRaster.setOpacity(z < 9.5 ? 0.85 : z < 10.5 ? 0.3 : 0);
   }
   capaRaster.addTo(mapa);
   mapa.on('zoomend', opacidadRaster);
@@ -1073,7 +1121,6 @@
                      (m.bbox ? fmt(m.urbanos + m.rurales, 0) : '—') + '</small>';
       li.title = titulo(m.nombre) + ': ' + fmt(m.urbanos, 0) + ' predios urbanos, ' + fmt(m.rurales, 0) + ' rurales';
       if (m.bbox) {
-        li.addEventListener('click', function () { ir(m.codigo); });
         li.addEventListener('mouseenter', function () { resaltar(m); });
         li.addEventListener('mouseleave', function () { capaResalte.clearLayers(); });
       }
@@ -1087,27 +1134,66 @@
     var estilo = { color: '#d11f5a', weight: 3, fillColor: '#d11f5a', fillOpacity: 0.15, interactive: false };
     (limites[m.codigo] ? L.geoJSON(limites[m.codigo], { style: estilo }) : L.rectangle(bboxLL(m.bbox), estilo)).addTo(capaResalte);
   }
+  // Selector tipo buscador: el listado se despliega al enfocar o escribir en el campo
   function marcarEnLista() {
     var actual = munActual ? munActual.codigo : null;
-    Array.prototype.forEach.call($('itemsMun').children, function (li) {
-      var es = li.dataset.codigo === actual;
-      li.classList.toggle('actual', es);
-      if (es) li.scrollIntoView({ block: 'nearest' });
-    });
+    Array.prototype.forEach.call($('itemsMun').children, function (li) { li.classList.toggle('actual', li.dataset.codigo === actual); });
+    if (document.activeElement !== $('filtroMun')) $('filtroMun').value = munActual ? titulo(munActual.nombre) + ' · ' + munActual.codigo : '';
   }
-  $('filtroMun').addEventListener('input', function () {
-    var q = sinTildes(this.value.trim()), visibles = 0;
+  function itemsVisibles() {
+    return Array.prototype.filter.call($('itemsMun').children, function (li) { return !li.hidden && !li.classList.contains('sin'); });
+  }
+  function filtrarLista(q) {
+    q = sinTildes(q.trim());
+    var n = 0;
     Array.prototype.forEach.call($('itemsMun').children, function (li) {
       var ver = !q || li.dataset.texto.indexOf(q) !== -1;
-      li.hidden = !ver;
-      if (ver) visibles++;
+      li.hidden = !ver; li.classList.remove('activo');
+      if (ver) n++;
     });
-    $('cuentaMun').textContent = q ? visibles + ' de ' + $('itemsMun').children.length : $('itemsMun').children.length;
-  });
+    $('cuentaMun').textContent = q ? n + ' de ' + $('itemsMun').children.length : $('itemsMun').children.length;
+    var v = itemsVisibles();
+    if (v.length) v[0].classList.add('activo');
+  }
+  function abrirLista() {
+    $('itemsMun').hidden = false;
+    $('filtroMun').setAttribute('aria-expanded', 'true');
+    var act = $('itemsMun').querySelector('li.actual:not([hidden])') || $('itemsMun').querySelector('li.activo');
+    if (act) act.scrollIntoView({ block: 'nearest' });
+  }
+  function cerrarLista() {
+    $('itemsMun').hidden = true;
+    $('filtroMun').setAttribute('aria-expanded', 'false');
+    capaResalte.clearLayers();
+  }
+  function elegirMun(codigo) { cerrarLista(); $('filtroMun').blur(); ir(codigo); }
+  $('filtroMun').addEventListener('focus', function () { this.value = ''; filtrarLista(''); abrirLista(); });
+  $('filtroMun').addEventListener('blur', function () { setTimeout(function () { cerrarLista(); marcarEnLista(); }, 150); });
+  $('filtroMun').addEventListener('input', function () { filtrarLista(this.value); abrirLista(); });
   $('filtroMun').addEventListener('keydown', function (e) {
-    if (e.key !== 'Enter') return;
-    var primero = Array.prototype.filter.call($('itemsMun').children, function (li) { return !li.hidden && !li.classList.contains('sin'); })[0];
-    if (primero) ir(primero.dataset.codigo);
+    var v = itemsVisibles(), i = v.findIndex(function (li) { return li.classList.contains('activo'); });
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if ($('itemsMun').hidden) abrirLista();
+      if (!v.length) return;
+      if (i >= 0) v[i].classList.remove('activo');
+      i = e.key === 'ArrowDown' ? Math.min(v.length - 1, i + 1) : Math.max(0, i - 1);
+      v[i].classList.add('activo');
+      v[i].scrollIntoView({ block: 'nearest' });
+      var m = muns[v[i].dataset.codigo]; if (m) resaltar(m);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      var elegido = v[i >= 0 ? i : 0];
+      if (elegido) elegirMun(elegido.dataset.codigo);
+    } else if (e.key === 'Escape') {
+      e.stopPropagation(); cerrarLista(); this.blur();
+    }
+  });
+  // mousedown (antes del blur) para que el clic en la lista no se pierda al cerrarse
+  $('itemsMun').addEventListener('mousedown', function (e) {
+    var li = e.target.closest('li');
+    e.preventDefault();
+    if (li && !li.classList.contains('sin')) elegirMun(li.dataset.codigo);
   });
 
   // ---------------- zonas urbanas (linea gruesa), areas por municipio y jerarquia urbana
@@ -1130,11 +1216,12 @@
   }).catch(function () {});
   fetch(DATOS + 'estadisticas.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
     estad = j;
-    if (munActual) pintarResumen(munActual);
+    pintarResumen(munActual);
     if (j && /[?&]jerarquia\b/.test(location.search)) $('btnJerarquia').click();   // enlace directo: ?jerarquia
   }).catch(function () {});
 
   function pintarResumen(m) {
+    pintarGrafico(m);
     var s = estad && m && estad.municipios[m.codigo];
     if (!s) { $('resumenMun').style.display = 'none'; return; }
     $('resumenTitulo').textContent = titulo(m.nombre) + ': áreas';
@@ -1154,6 +1241,64 @@
     $('resumenCat').textContent = s.categoria;
     $('resumenMun').style.display = 'block';
   }
+
+  // Grafico circular: los 7 municipios de mayor area + "otros"; el municipio actual se destaca
+  var DONA_TOP = 7;
+  function pintarGrafico(mActual) {
+    if (!estad) return;
+    var total = estad.area_departamento_km2;
+    var todos = Object.keys(estad.municipios).map(function (c) { return { c: c, a: estad.municipios[c].area_km2 || 0 }; })
+      .sort(function (x, y) { return y.a - x.a; });
+    var top = todos.slice(0, DONA_TOP), resto = todos.slice(DONA_TOP);
+    var porciones = top.map(function (t, i) {
+      return { c: t.c, nombre: titulo((muns[t.c] || {}).nombre || t.c), a: t.a, color: 'var(--s' + (i + 1) + ')' };
+    });
+    porciones.push({ c: null, nombre: 'Otros ' + resto.length + ' municipios', a: resto.reduce(function (s, t) { return s + t.a; }, 0),
+                     color: 'var(--s-otros)' });
+    var cx = 110, cy = 110, R = 100, r = 62, ang = -Math.PI / 2, html = '';
+    function punto(rad, a) { return (cx + rad * Math.cos(a)).toFixed(2) + ' ' + (cy + rad * Math.sin(a)).toFixed(2); }
+    porciones.forEach(function (p, i) {
+      var da = 2 * Math.PI * p.a / total, a1 = ang + da, grande = da > Math.PI ? 1 : 0;
+      var d = 'M' + punto(R, ang) + ' A' + R + ' ' + R + ' 0 ' + grande + ' 1 ' + punto(R, a1) +
+              ' L' + punto(r, a1) + ' A' + r + ' ' + r + ' 0 ' + grande + ' 0 ' + punto(r, ang) + 'Z';
+      var medio = ang + da / 2, esActual = mActual && p.c === mActual.codigo;
+      var mover = esActual ? 'transform="translate(' + (6 * Math.cos(medio)).toFixed(1) + ' ' + (6 * Math.sin(medio)).toFixed(1) + ')"' : '';
+      html += '<path d="' + d + '" fill="' + p.color + '" data-i="' + i + '" class="' + (esActual ? 'actual' : '') + '" ' + mover + '></path>';
+      p.medio = medio;
+      ang = a1;
+    });
+    $('donaSvg').innerHTML = html;
+    var sa = mActual && estad.municipios[mActual.codigo];
+    $('donaCentro').innerHTML = sa
+      ? '<b>' + fmt(sa.pct_departamento, 2) + ' %</b><span>' + esc(titulo(mActual.nombre)) + '<br>' + fmt(sa.area_km2, 0) + ' km²</span>'
+      : '<b>' + fmt(total, 0) + '</b><span>km² de Boyacá<br>' + Object.keys(estad.municipios).length + ' municipios</span>';
+    $('donaLeyenda').innerHTML = porciones.map(function (p, i) {
+      var esActual = mActual && p.c === mActual.codigo;
+      return '<li data-i="' + i + '" class="' + (esActual ? 'actual' : '') + '"><i style="background:' + p.color + '"></i><span>' +
+             esc(p.nombre) + '</span><small>' + fmt(100 * p.a / total, 1) + ' %</small></li>';
+    }).join('');
+    pintarGrafico.porciones = porciones;
+  }
+  function tipDona(i, ev) {
+    var p = pintarGrafico.porciones[i], tip = $('donaTip');
+    if (!p) { tip.hidden = true; return; }
+    var caja = $('donaSvg').getBoundingClientRect(), k = caja.width / 220;
+    tip.innerHTML = esc(p.nombre) + '<br><b>' + fmt(p.a, 0) + ' km²</b> · ' + fmt(100 * p.a / estad.area_departamento_km2, 2) + ' %';
+    tip.style.left = (110 + 82 * Math.cos(p.medio)) * k + 'px';
+    tip.style.top = (110 + 82 * Math.sin(p.medio)) * k + 'px';
+    tip.hidden = false;
+  }
+  function irPorcion(i) { var p = pintarGrafico.porciones[i]; if (p && p.c) ir(p.c); }
+  $('donaSvg').addEventListener('mousemove', function (e) {
+    var i = e.target.getAttribute && e.target.getAttribute('data-i');
+    if (i == null) { $('donaTip').hidden = true; return; }
+    tipDona(+i, e);
+  });
+  $('donaSvg').addEventListener('mouseleave', function () { $('donaTip').hidden = true; });
+  $('donaSvg').addEventListener('click', function (e) { var i = e.target.getAttribute('data-i'); if (i != null) irPorcion(+i); });
+  $('donaLeyenda').addEventListener('mouseover', function (e) { var li = e.target.closest('li'); if (li) tipDona(+li.getAttribute('data-i')); });
+  $('donaLeyenda').addEventListener('mouseleave', function () { $('donaTip').hidden = true; });
+  $('donaLeyenda').addEventListener('click', function (e) { var li = e.target.closest('li'); if (li) irPorcion(+li.getAttribute('data-i')); });
 
   // Tabla de jerarquia urbana (ordenable, clic = ir al municipio, descarga CSV)
   var COLS = [
@@ -1279,7 +1424,7 @@
     pintarResumen(mun && mun.archivo ? mun : null);
     capaResalte.clearLayers();
     var partes = [{ t: 'Colombia', c: '' }];
-    if (dep) partes.push({ t: titulo(dep.nombre) + ' · ' + dep.municipios.filter(function (m) { return m.bbox; }).length + ' municipios', c: dep.codigo });
+    if (dep) partes.push({ t: titulo(dep.nombre) + (mun ? '' : ' · ' + dep.municipios.filter(function (m) { return m.bbox; }).length + ' municipios'), c: dep.codigo });
     if (mun) partes.push({ t: titulo(mun.nombre), c: mun.codigo });
     $('ruta').innerHTML = partes.map(function (p, i) {
       return (i ? '<span class="sep">›</span>' : '') +
