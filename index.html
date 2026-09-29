@@ -90,8 +90,9 @@
   #graficoArea { border: 1px solid var(--borde); border-radius: 8px; padding: 10px; background: var(--sup-graf); }
   .dona { position: relative; width: 200px; margin: 4px auto 6px; }
   .dona svg { display: block; width: 100%; height: auto; overflow: visible; }
-  .dona svg path { stroke: var(--sup-graf); stroke-width: 2; cursor: pointer; transition: transform .15s; transform-origin: 110px 110px; }
-  .dona svg path.actual { stroke: var(--texto); stroke-width: 2.5; }
+  .dona svg path { stroke: var(--sup-graf); stroke-width: 0.6; cursor: pointer; transition: transform .15s; transform-origin: 110px 110px; }
+  .dona svg path:hover { filter: brightness(1.15); }
+  .dona svg path.actual { stroke: var(--texto); stroke-width: 1.5; }
   .dona-centro { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
                  text-align: center; pointer-events: none; padding: 0 58px; }
   .dona-centro b { font-size: 18px; font-variant-numeric: tabular-nums; color: var(--texto); line-height: 1.1; }
@@ -100,7 +101,8 @@
               border: 1px solid var(--borde); border-radius: 6px; padding: 5px 8px; font-size: 11px; white-space: nowrap;
               box-shadow: 0 4px 12px rgba(0,0,0,.18); transform: translate(-50%, calc(-100% - 8px)); }
   .dona-tip b { font-variant-numeric: tabular-nums; }
-  .dona-leyenda { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 11px; }
+  .dona-leyenda { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; font-size: 11px;
+                  max-height: 230px; overflow-y: auto; position: relative; border-top: 1px solid var(--borde); padding-top: 4px; }
   .dona-leyenda li { display: grid; grid-template-columns: 10px 1fr auto; gap: 6px; align-items: center; padding: 2px 4px;
                      border-radius: 4px; cursor: pointer; color: var(--texto); }
   .dona-leyenda li:hover, .dona-leyenda li.actual { background: var(--acento-suave); }
@@ -1267,24 +1269,22 @@
     var total = estad.area_departamento_km2;
     var todos = Object.keys(estad.municipios).map(function (c) { return { c: c, a: estad.municipios[c].area_km2 || 0 }; })
       .sort(function (x, y) { return y.a - x.a; });
-    var top = todos.slice(0, DONA_TOP), resto = todos.slice(DONA_TOP);
-    var porciones = top.map(function (t, i) {
-      return { c: t.c, nombre: titulo((muns[t.c] || {}).nombre || t.c), a: t.a, color: 'var(--s' + (i + 1) + ')' };
+    // Todos los municipios, de mayor a menor area; color = escala secuencial de un solo tono (oscuro = mas grande)
+    var porciones = todos.map(function (t, i) {
+      return { c: t.c, nombre: titulo((muns[t.c] || {}).nombre || t.c), a: t.a, puesto: i + 1,
+               color: colorSecuencial(i / Math.max(1, todos.length - 1)) };
     });
-    // El municipio seleccionado siempre tiene su propia porcion (se saca de "otros" si no esta entre los mayores)
-    if (mActual && !top.some(function (t) { return t.c === mActual.codigo; })) {
-      var propio = resto.filter(function (t) { return t.c === mActual.codigo; })[0];
-      if (propio) {
-        resto = resto.filter(function (t) { return t !== propio; });
-        // va primero: arranca a las 12 en punto y encabeza la leyenda
-        porciones.unshift({ c: propio.c, nombre: titulo(mActual.nombre) + ' (seleccionado)', a: propio.a, color: 'var(--s8)' });
-      }
+    // El seleccionado va en rojo y el dibujo arranca en el (queda arriba, a las 12 en punto)
+    var inicio = 0;
+    if (mActual) {
+      porciones.forEach(function (p, i) { if (p.c === mActual.codigo) { p.color = 'var(--s8)'; inicio = i; } });
     }
-    porciones.push({ c: null, nombre: 'Otros ' + resto.length + ' municipios', a: resto.reduce(function (s, t) { return s + t.a; }, 0),
-                     color: 'var(--s-otros)' });
-    var cx = 110, cy = 110, R = 100, r = 62, ang = -Math.PI / 2, html = '';
+    var dibujo = porciones.slice(inicio).concat(porciones.slice(0, inicio));
+    var cx = 110, cy = 110, R = 100, r = 62, html = '';
+    var ang = -Math.PI / 2 - (mActual && inicio >= 0 ? Math.PI * (porciones[inicio].a / total) : 0);
     function punto(rad, a) { return (cx + rad * Math.cos(a)).toFixed(2) + ' ' + (cy + rad * Math.sin(a)).toFixed(2); }
-    porciones.forEach(function (p, i) {
+    dibujo.forEach(function (p) {
+      var i = porciones.indexOf(p);
       var da = 2 * Math.PI * p.a / total, a1 = ang + da, grande = da > Math.PI ? 1 : 0;
       var d = 'M' + punto(R, ang) + ' A' + R + ' ' + R + ' 0 ' + grande + ' 1 ' + punto(R, a1) +
               ' L' + punto(r, a1) + ' A' + r + ' ' + r + ' 0 ' + grande + ' 0 ' + punto(r, ang) + 'Z';
@@ -1302,9 +1302,18 @@
     $('donaLeyenda').innerHTML = porciones.map(function (p, i) {
       var esActual = mActual && p.c === mActual.codigo;
       return '<li data-i="' + i + '" class="' + (esActual ? 'actual' : '') + '"><i style="background:' + p.color + '"></i><span>' +
-             esc(p.nombre) + '</span><small>' + fmt(100 * p.a / total, 1) + ' %</small></li>';
+             p.puesto + '. ' + esc(p.nombre) + '</span><small>' + fmt(100 * p.a / total, 2) + ' % · ' + fmt(p.a, 0) + ' km²</small></li>';
     }).join('');
     pintarGrafico.porciones = porciones;
+    var act = $('donaLeyenda').querySelector('li.actual');
+    if (act) $('donaLeyenda').scrollTop = act.offsetTop - $('donaLeyenda').clientHeight / 2;
+  }
+  // Escala secuencial azul (paleta validada, pasos 700 -> 150): t = 0 (mayor area) ... 1 (menor)
+  var RAMPA = ['#0d366b', '#104281', '#184f95', '#1c5cab', '#256abf', '#2a78d6', '#3987e5', '#5598e7', '#6da7ec', '#86b6ef', '#9ec5f4', '#b7d3f6'];
+  function colorSecuencial(t) {
+    var x = t * (RAMPA.length - 1), i = Math.min(RAMPA.length - 2, Math.floor(x)), f = x - i;
+    var a = RAMPA[i], b = RAMPA[i + 1], c = function (h, k) { return parseInt(h.substr(1 + 2 * k, 2), 16); };
+    return 'rgb(' + [0, 1, 2].map(function (k) { return Math.round(c(a, k) + (c(b, k) - c(a, k)) * f); }).join(',') + ')';
   }
   function tipDona(i, ev) {
     var p = pintarGrafico.porciones[i], tip = $('donaTip');
