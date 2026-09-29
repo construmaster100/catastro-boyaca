@@ -52,6 +52,13 @@
   #listaMun .cuerpo-der { padding: 12px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 12px; }
   #listaMun .cuerpo-der > * { flex-shrink: 0; }
   #listaMun .ayuda-der { font-size: 11px; color: var(--suave); margin: 0; }
+  .poblacion-tit { text-align: center; padding: 6px 4px 8px; border-bottom: 1px solid var(--borde); }
+  .poblacion-tit .lbl { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--suave); }
+  .poblacion-tit b { display: block; font-size: 34px; line-height: 1.1; color: #0f4d2e; font-variant-numeric: tabular-nums; }
+  .poblacion-tit .lugar { display: block; font-size: 13px; font-weight: 600; color: var(--texto); }
+  .poblacion-tit .lugar small { font-weight: 400; color: var(--suave); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .poblacion-tit b { color: #7fd1a3; } }
+  :root[data-theme="dark"] .poblacion-tit b { color: #7fd1a3; }
   /* desplegable del selector */
   #itemsMun { list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; position: absolute; left: 12px; right: 12px;
               top: 66px; max-height: min(60vh, 420px); background: var(--panel); border: 1px solid var(--borde);
@@ -381,7 +388,11 @@
     <ul id="itemsMun" role="listbox" hidden></ul>
   </div>
   <div class="cuerpo-der" id="cuerpoDer">
-    <p class="ayuda-der" id="ayudaDer">Escriba el nombre o el código DANE del municipio y elíjalo de la lista (↑ ↓ y Enter).</p>
+    <div class="poblacion-tit" id="poblacionTit">
+      <span class="lbl">Habitantes 2024</span>
+      <b id="pobNum">—</b>
+      <span class="lugar" id="pobLugar">Boyacá</span>
+    </div>
     <section id="resumenMun">
       <h2 id="resumenTitulo">Resumen del municipio</h2>
       <dl id="resumenDatos"></dl>
@@ -1340,7 +1351,24 @@
   }).catch(function () {});
 
   var COLOR_RIESGO = { 'Sin riesgo': '#0ca30c', 'Bajo': '#7a9a01', 'Medio': '#c98500', 'Alto': '#d03b3b', 'Inviable sanitariamente': '#7a1030' };
+  // Titulo grande: habitantes del municipio seleccionado o, sin seleccion, total de Boyaca
+  function pintarPoblacion(m) {
+    if (!indic) return;
+    var d = m && indic.municipios[m.codigo];
+    if (d) {
+      var total = Object.keys(indic.municipios).reduce(function (s, c) { return s + (indic.municipios[c].poblacion || 0); }, 0);
+      $('pobNum').textContent = fmt(d.poblacion, 0);
+      $('pobLugar').innerHTML = esc(titulo(m.nombre)) + ' <small>· ' + fmt(100 * d.poblacion / total, 2) + ' % de Boyacá</small>';
+    } else {
+      var t = 0;
+      Object.keys(indic.municipios).forEach(function (c) { t += indic.municipios[c].poblacion || 0; });
+      $('pobNum').textContent = fmt(t, 0);
+      $('pobLugar').innerHTML = 'Boyacá <small>· 123 municipios</small>';
+    }
+  }
+
   function pintarIndicadores(m) {
+    pintarPoblacion(m);
     var d = indic && m && indic.municipios[m.codigo];
     if (!d) { $('indicadoresMun').style.display = 'none'; return; }
     var s = estad && estad.municipios[m.codigo];
