@@ -154,6 +154,7 @@
       <button class="pri" id="btnCopiar">Copiar número</button>
       <button id="btnGmaps">Google Maps</button>
       <button id="btnGeo">GeoJSON</button>
+      <button id="btnQuitar" title="También con la tecla Esc o clic en un espacio vacío del mapa">✕ Quitar selección</button>
     </div>
   </section>
   <section>
@@ -311,7 +312,7 @@
     capasPredios[m.codigo] = L.geoJSON({ type: 'FeatureCollection', features: feats }, {
       renderer: lienzo, smoothFactor: 1.5,
       style: { color: css('--predio'), weight: 0.6, fillOpacity: 0.07 },
-      onEachFeature: function (f, capa) { capa.on('click', function () { elegir(f, true); }); }
+      onEachFeature: function (f, capa) { capa.on('click', function (e) { e.originalEvent._enPredio = true; elegir(f, true); }); }
     });
   }
 
@@ -498,7 +499,7 @@
     } else {
       capaMarca = L.geoJSON({ type: 'FeatureCollection', features: coinciden }, {
         renderer: lienzo, style: { color: css('--marca'), weight: 1.4, fillOpacity: 0.35 },
-        onEachFeature: function (f, capa) { capa.on('click', function () { elegir(f, true); }); }
+        onEachFeature: function (f, capa) { capa.on('click', function (e) { e.originalEvent._enPredio = true; elegir(f, true); }); }
       }).addTo(mapa);
       if (!exacto) mapa.fitBounds(capaMarca.getBounds(), { maxZoom: 18, padding: [20, 20] });
       estado(fmt(coinciden.length, 0) + ' predio(s) coinciden con el código.');
@@ -534,6 +535,26 @@
     ].map(function (r) { return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join('');
     $('ficha').style.display = 'block';
   }
+  // Quitar la seleccion: vuelve al nivel de municipio sin mover el mapa
+  function deseleccionar() {
+    if (!seleccion && !capaMarca) return;
+    if (capaSel) { mapa.removeLayer(capaSel); capaSel = null; }
+    if (capaMarca) { mapa.removeLayer(capaMarca); capaMarca = null; }
+    seleccion = null;
+    $('ficha').style.display = 'none';
+    listar([]);
+    var c = limpio($('codigo').value).slice(0, 5);
+    var m = muns[c];
+    $('codigo').value = c;
+    history.replaceState(null, '', c ? '#' + c : location.pathname);
+    pintarSegmentos(c);
+    pintarJerarquia(c, m && m.dep, m, 0);
+    estado('');
+  }
+  $('btnQuitar').addEventListener('click', deseleccionar);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') deseleccionar(); });
+  mapa.on('click', function (e) { if (!e.originalEvent._enPredio) deseleccionar(); });
+
   $('btnCopiar').addEventListener('click', function () {
     if (seleccion) navigator.clipboard.writeText(seleccion.properties.NUMERO_CATASTRAL).then(function () { estado('Número copiado.'); });
   });
