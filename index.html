@@ -29,7 +29,26 @@
   body { background: var(--bg); color: var(--texto); font: 13px/1.45 system-ui, "Segoe UI", Roboto, sans-serif;
          display: grid; height: 100vh; overflow: hidden;
          grid-template-columns: 250px 1fr 250px; grid-template-rows: 50px 50px 1fr;
-         grid-template-areas: "logo banner perito" "logo nav perito" "panel mapa mapa"; }
+         grid-template-areas: "logo banner perito" "logo nav perito" "panel mapa lista"; }
+
+  /* panel derecho: listado de municipios */
+  #listaMun { grid-area: lista; width: 250px; background: var(--panel); border-left: 1px solid var(--borde);
+              display: flex; flex-direction: column; min-height: 0; }
+  #listaMun .cabeza { padding: 10px 12px 8px; border-bottom: 1px solid var(--borde); }
+  #listaMun .cabeza h2 { display: flex; justify-content: space-between; }
+  #listaMun .cabeza h2 span { text-transform: none; letter-spacing: 0; }
+  #filtroMun { width: 100%; font: inherit; color: var(--texto); background: var(--bg); border: 1px solid var(--borde);
+               border-radius: 6px; padding: 6px 8px; }
+  #filtroMun:focus { outline: 2px solid var(--acento); outline-offset: -1px; }
+  #itemsMun { list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; flex: 1; }
+  #itemsMun li { display: grid; grid-template-columns: 44px 1fr auto; gap: 6px; align-items: baseline; padding: 5px 12px;
+                 cursor: pointer; border-left: 3px solid transparent; }
+  #itemsMun li:hover { background: var(--acento-suave); }
+  #itemsMun li.actual { background: var(--acento-suave); border-left-color: #0f4d2e; font-weight: 700; }
+  #itemsMun li.sin { opacity: .5; cursor: default; }
+  #itemsMun code { color: var(--acento); font-size: 11px; }
+  #itemsMun small { color: var(--suave); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+  #itemsMun .vacio { color: var(--suave); cursor: default; display: block; }
 
   /* logo del perito: esquina superior derecha, igual al logo principal (250 x 100) */
   #logoPerito { grid-area: perito; width: 250px; height: 100px; background: var(--panel); border-left: 1px solid var(--borde);
@@ -155,8 +174,9 @@
   .control-grilla .dato { color: var(--suave); margin-top: 2px; font-family: ui-monospace, Consolas, monospace; }
 
   @media (max-width: 800px) {
-    body { overflow: auto; height: auto; grid-template-columns: 60px 1fr; grid-template-rows: 60px 60vh auto;
-           grid-template-areas: "logo nav" "mapa mapa" "panel panel"; }
+    body { overflow: auto; height: auto; grid-template-columns: 60px 1fr; grid-template-rows: 60px 60vh auto auto;
+           grid-template-areas: "logo nav" "mapa mapa" "panel panel" "lista lista"; }
+    #listaMun { width: auto; border-left: 0; max-height: 60vh; }
     #banner, #logoPerito { display: none; }
     nav { height: 60px; }
     #logo { width: 60px; height: 60px; }
@@ -225,6 +245,14 @@
 </aside>
 
 <div id="mapa"></div>
+
+<section id="listaMun" aria-label="Municipios">
+  <div class="cabeza">
+    <h2>Municipios <span id="cuentaMun"></span></h2>
+    <input id="filtroMun" type="search" autocomplete="off" placeholder="Buscar municipio o código…">
+  </div>
+  <ul id="itemsMun"></ul>
+</section>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.js"></script>
@@ -445,6 +473,7 @@
     });
     llenarDeps();
     crearNombresMunicipios();
+    llenarListaMun();
     var inicial = limpio(location.hash.slice(1)) || (indice.departamentos.length === 1 ? indice.departamentos[0].codigo : '');
     $('codigo').value = inicial;
     buscar();
@@ -971,6 +1000,60 @@
   // Enlace directo a la ficha: index.html?ficha#<numero predial de 30 digitos>
   var fichaDirecta = /[?&]ficha\b/.test(location.search);
 
+  // ---------------- panel derecho: listado de municipios del departamento
+  var capaResalte = L.layerGroup().addTo(mapa);
+  function sinTildes(t) { return (t || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase(); }
+  function llenarListaMun() {
+    var dep = deps['15'] || indice.departamentos[0];
+    var lista = dep.municipios.slice().sort(function (a, b) { return a.nombre.localeCompare(b.nombre, 'es'); });
+    var ul = $('itemsMun');
+    ul.innerHTML = '';
+    lista.forEach(function (m) {
+      var li = document.createElement('li');
+      li.dataset.codigo = m.codigo;
+      li.dataset.texto = sinTildes(m.nombre) + ' ' + m.codigo;
+      li.className = m.bbox ? '' : 'sin';
+      li.innerHTML = '<code>' + m.codigo + '</code><span>' + titulo(m.nombre) + '</span><small>' +
+                     (m.bbox ? fmt(m.urbanos + m.rurales, 0) : '—') + '</small>';
+      li.title = titulo(m.nombre) + ': ' + fmt(m.urbanos, 0) + ' predios urbanos, ' + fmt(m.rurales, 0) + ' rurales';
+      if (m.bbox) {
+        li.addEventListener('click', function () { ir(m.codigo); });
+        li.addEventListener('mouseenter', function () { resaltar(m); });
+        li.addEventListener('mouseleave', function () { capaResalte.clearLayers(); });
+      }
+      ul.appendChild(li);
+    });
+    $('cuentaMun').textContent = lista.length;
+    marcarEnLista();
+  }
+  function resaltar(m) {
+    capaResalte.clearLayers();
+    var estilo = { color: '#d11f5a', weight: 3, fillColor: '#d11f5a', fillOpacity: 0.15, interactive: false };
+    (limites[m.codigo] ? L.geoJSON(limites[m.codigo], { style: estilo }) : L.rectangle(bboxLL(m.bbox), estilo)).addTo(capaResalte);
+  }
+  function marcarEnLista() {
+    var actual = munActual ? munActual.codigo : null;
+    Array.prototype.forEach.call($('itemsMun').children, function (li) {
+      var es = li.dataset.codigo === actual;
+      li.classList.toggle('actual', es);
+      if (es) li.scrollIntoView({ block: 'nearest' });
+    });
+  }
+  $('filtroMun').addEventListener('input', function () {
+    var q = sinTildes(this.value.trim()), visibles = 0;
+    Array.prototype.forEach.call($('itemsMun').children, function (li) {
+      var ver = !q || li.dataset.texto.indexOf(q) !== -1;
+      li.hidden = !ver;
+      if (ver) visibles++;
+    });
+    $('cuentaMun').textContent = q ? visibles + ' de ' + $('itemsMun').children.length : $('itemsMun').children.length;
+  });
+  $('filtroMun').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter') return;
+    var primero = Array.prototype.filter.call($('itemsMun').children, function (li) { return !li.hidden && !li.classList.contains('sin'); })[0];
+    if (primero) ir(primero.dataset.codigo);
+  });
+
   // Clic en el logo: volver a la vista de todo el departamento
   $('logo').addEventListener('click', function () { ir('15'); });
 
@@ -1014,6 +1097,8 @@
 
   // ---------------- paneles
   function pintarRuta(dep, mun) {
+    setTimeout(marcarEnLista, 0);
+    capaResalte.clearLayers();
     var partes = [{ t: 'Colombia', c: '' }];
     if (dep) partes.push({ t: titulo(dep.nombre) + ' · ' + dep.municipios.filter(function (m) { return m.bbox; }).length + ' municipios', c: dep.codigo });
     if (mun) partes.push({ t: titulo(mun.nombre), c: mun.codigo });
