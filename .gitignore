@@ -1,0 +1,12 @@
+# Datos pesados que se regeneran con los scripts (ver README § 5 y § 16)
+crudo/
+catastro/
+_organizar/
+
+# Registros, temporales y caches
+*.log
+*.tmp
+__pycache__/
+
+# Configuracion local de Claude Code
+.claude/
