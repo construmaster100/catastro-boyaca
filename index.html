@@ -117,6 +117,16 @@
                    border-radius: 6px; padding: 3px 7px; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
   .area-lote div small { display: block; font-weight: 500; font-size: 10px; opacity: .9; }
   .leaflet-container.lejos .cota, .leaflet-container.lejos .area-lote { display: none; }
+  /* grilla de coordenadas */
+  .grilla-etq { background: none; border: 0; pointer-events: none; }
+  .grilla-etq div { position: absolute; white-space: nowrap; font: 600 10px/1 ui-monospace, Consolas, monospace;
+                    color: #0f4d2e; background: rgba(255,255,255,.85); padding: 2px 4px; border-radius: 3px; }
+  .grilla-etq.e div { transform: translate(-50%, 4px); }
+  .grilla-etq.n div { transform: translate(4px, -50%); }
+  .control-grilla { background: var(--panel); color: var(--texto); border: 1px solid var(--borde); border-radius: 8px;
+                    padding: 6px 9px; font-size: 11px; box-shadow: 0 1px 5px rgba(0,0,0,.2); min-width: 190px; }
+  .control-grilla label { display: flex; align-items: center; gap: 6px; font-weight: 600; cursor: pointer; }
+  .control-grilla .dato { color: var(--suave); margin-top: 2px; font-family: ui-monospace, Consolas, monospace; }
 
   @media (max-width: 800px) {
     body { overflow: auto; height: auto; grid-template-columns: 60px 1fr; grid-template-rows: 60px 60vh auto;
@@ -181,6 +191,7 @@
 <div id="mapa"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.js"></script>
 <script>
 (function () {
   var DATOS = 'datos/';
@@ -209,7 +220,8 @@
 
   // ---------------- mapa
   var lienzo = L.canvas({ padding: 0.3, tolerance: 4 });
-  var mapa = L.map('mapa', { preferCanvas: true, renderer: lienzo, zoomSnap: 0.5, wheelPxPerZoomLevel: 90 }).fitBounds(COLOMBIA);
+  var mapa = L.map('mapa', { preferCanvas: true, renderer: lienzo, zoomSnap: 0.5, wheelPxPerZoomLevel: 90, zoomControl: false }).fitBounds(COLOMBIA);
+  L.control.zoom({ position: 'bottomright' }).addTo(mapa);
   var calles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     { maxZoom: 20, maxNativeZoom: 19, attribution: '&copy; OpenStreetMap · Datos: IGAC' }).addTo(mapa);
   var satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -228,6 +240,81 @@
     L.geoJSON(fc, { renderer: lienzoContorno, interactive: false,
                     style: { color: '#0f4d2e', weight: 4, opacity: 1, fill: false } }).addTo(mapa);
   }).catch(function () {});
+
+  // ---------------- grilla de coordenadas (MAGNA-SIRGAS / Origen Nacional, EPSG:9377, metros)
+  proj4.defs('EPSG:9377', '+proj=tmerc +lat_0=4 +lon_0=-73 +k=0.9992 +x_0=5000000 +y_0=2000000 ' +
+                          '+ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
+  var aPlano = proj4('EPSG:4326', 'EPSG:9377');
+  var ESPACIADOS = [10, 100, 1000, 10000, 100000];
+  var grillaActiva = true;
+  mapa.createPane('grilla').style.zIndex = 430;
+  mapa.getPane('grilla').style.pointerEvents = 'none';
+  var lienzoGrilla = L.canvas({ pane: 'grilla', padding: 0.2 });
+  var capaGrilla = L.layerGroup().addTo(mapa);
+
+  function numero(v) { return Math.round(v).toLocaleString('es-CO'); }
+  function aLatLng(e, n) { var r = aPlano.inverse([e, n]); return L.latLng(r[1], r[0]); }
+
+  function dibujarGrilla() {
+    capaGrilla.clearLayers();
+    if (!grillaActiva) { $('grillaPaso').textContent = 'apagada'; return; }
+    var b = mapa.getBounds(), tam = mapa.getSize();
+    var esquinas = [b.getSouthWest(), b.getNorthWest(), b.getNorthEast(), b.getSouthEast()]
+      .map(function (ll) { return aPlano.forward([ll.lng, ll.lat]); });
+    var minE = Math.min.apply(0, esquinas.map(function (c) { return c[0]; })), maxE = Math.max.apply(0, esquinas.map(function (c) { return c[0]; }));
+    var minN = Math.min.apply(0, esquinas.map(function (c) { return c[1]; })), maxN = Math.max.apply(0, esquinas.map(function (c) { return c[1]; }));
+    var mpp = (maxE - minE) / tam.x;                                   // metros por pixel
+    var paso = ESPACIADOS.filter(function (s) { return s / mpp >= 55; })[0] || ESPACIADOS[ESPACIADOS.length - 1];
+    var mayor = paso * 10;
+    $('grillaPaso').textContent = 'líneas cada ' + numero(paso) + ' m';
+    var norteVista = b.getNorth(), oesteVista = b.getWest();
+    // etiquetas cada 1, 2, 5 o 10 lineas para que queden separadas al menos ~110 px (Este) / ~45 px (Norte)
+    var cadaE = paso * ([1, 2, 5, 10].filter(function (k) { return k * paso / mpp >= 110; })[0] || 10);
+    var cadaN = paso * ([1, 2, 5, 10].filter(function (k) { return k * paso / mpp >= 45; })[0] || 10);
+
+    function linea(puntos, esMayor) {
+      L.polyline(puntos, { renderer: lienzoGrilla, interactive: false, color: '#0f4d2e',
+                           weight: esMayor ? 1.4 : 0.7, opacity: esMayor ? 0.6 : 0.35 }).addTo(capaGrilla);
+    }
+    function etiqueta(ll, clase, texto) {
+      L.marker(ll, { interactive: false, keyboard: false, zIndexOffset: -1000, icon: L.divIcon({
+        className: 'grilla-etq ' + clase, iconSize: null, html: '<div>' + texto + '</div>' }), pane: 'grilla' }).addTo(capaGrilla);
+    }
+    var pasosN = 6, e, n, i, pts;
+    for (e = Math.ceil(minE / paso) * paso; e <= maxE; e += paso) {       // lineas de igual Este (verticales)
+      pts = [];
+      for (i = 0; i <= pasosN; i++) pts.push(aLatLng(e, minN + (maxN - minN) * i / pasosN));
+      var esMayorE = e % mayor === 0;
+      linea(pts, esMayorE);
+      if (e % cadaE === 0) etiqueta(L.latLng(norteVista, aLatLng(e, (minN + maxN) / 2).lng), 'e', 'E ' + numero(e));
+    }
+    for (n = Math.ceil(minN / paso) * paso; n <= maxN; n += paso) {       // lineas de igual Norte (horizontales)
+      pts = [];
+      for (i = 0; i <= pasosN; i++) pts.push(aLatLng(minE + (maxE - minE) * i / pasosN, n));
+      var esMayorN = n % mayor === 0;
+      linea(pts, esMayorN);
+      if (n % cadaN === 0) etiqueta(L.latLng(aLatLng((minE + maxE) / 2, n).lat, oesteVista), 'n', 'N ' + numero(n));
+    }
+  }
+
+  var ControlGrilla = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd: function () {
+      var div = L.DomUtil.create('div', 'control-grilla');
+      div.innerHTML = '<label><input type="checkbox" id="grillaSi" checked> Grilla de coordenadas</label>' +
+        '<div class="dato" id="grillaPaso"></div><div class="dato" id="grillaCursor">MAGNA-SIRGAS Origen Nacional</div>';
+      L.DomEvent.disableClickPropagation(div);
+      return div;
+    }
+  });
+  new ControlGrilla().addTo(mapa);
+  $('grillaSi').addEventListener('change', function () { grillaActiva = this.checked; dibujarGrilla(); });
+  mapa.on('moveend', dibujarGrilla);
+  mapa.on('mousemove', function (ev) {
+    var c = aPlano.forward([ev.latlng.lng, ev.latlng.lat]);
+    $('grillaCursor').textContent = 'E ' + numero(c[0]) + ' · N ' + numero(c[1]);
+  });
+  dibujarGrilla();
 
   var capaMunicipios = L.layerGroup().addTo(mapa);
   var capaNombres = L.layerGroup().addTo(mapa);     // codigo + nombre de cada municipio
@@ -744,7 +831,9 @@
       [p.ZONA === 'URBANO' ? 'Manzana' : 'Vereda', '<span class="mono">' + esc(p.MANZANA_VEREDA || '—') + '</span>'],
       ['Área del terreno', '<b>' + fmt(p.AREA_M2, 2) + ' m²</b>' + (p.AREA_M2 >= 10000 ? ' (' + fmt(p.AREA_M2 / 10000, 4) + ' ha)' : '')],
       ['Perímetro', fmt(geo.perimetro, 2) + ' m'],
-      ['Coordenadas (centro)', fmt(p.LATITUD, 6) + ', ' + fmt(p.LONGITUD, 6) + ' (MAGNA-SIRGAS)']
+      ['Coordenadas (centro)', fmt(p.LATITUD, 6) + ', ' + fmt(p.LONGITUD, 6) + ' (MAGNA-SIRGAS)'],
+      ['Coordenadas planas', (function () { var c = aPlano.forward([p.LONGITUD, p.LATITUD]);
+        return 'E ' + fmt(c[0], 2) + ' · N ' + fmt(c[1], 2) + ' (Origen Nacional, EPSG:9377)'; })()]
     ].map(function (r) { return '<tr><th>' + r[0] + '</th><td>' + r[1] + '</td></tr>'; }).join('');
     var linderos = geo.lados.map(function (l, i) {
       return '<tr><td>' + (i + 1) + '</td><td>' + l.rumbo + '</td><td>' + l.desde + ' – ' + l.hasta + '</td><td class="num">' + fmt(l.largo, 2) + ' m</td></tr>';
