@@ -81,12 +81,12 @@
 
   /* grafico circular (dona) del area de los municipios: paleta categorica validada (7 tonos + gris "otros") */
   :root { --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7;
-          --s-otros: #c3c2b7; --sup-graf: #fcfcfb; }
+          --s8: #e34948; --s-otros: #c3c2b7; --sup-graf: #fcfcfb; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
     --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9;
-    --s-otros: #52514e; --sup-graf: #1a1a19; } }
+    --s8: #e66767; --s-otros: #52514e; --sup-graf: #1a1a19; } }
   :root[data-theme="dark"] { --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300;
-                             --s7: #9085e9; --s-otros: #52514e; --sup-graf: #1a1a19; }
+                             --s7: #9085e9; --s8: #e66767; --s-otros: #52514e; --sup-graf: #1a1a19; }
   #graficoArea { border: 1px solid var(--borde); border-radius: 8px; padding: 10px; background: var(--sup-graf); }
   .dona { position: relative; width: 200px; margin: 4px auto 6px; }
   .dona svg { display: block; width: 100%; height: auto; overflow: visible; }
@@ -1271,6 +1271,15 @@
     var porciones = top.map(function (t, i) {
       return { c: t.c, nombre: titulo((muns[t.c] || {}).nombre || t.c), a: t.a, color: 'var(--s' + (i + 1) + ')' };
     });
+    // El municipio seleccionado siempre tiene su propia porcion (se saca de "otros" si no esta entre los mayores)
+    if (mActual && !top.some(function (t) { return t.c === mActual.codigo; })) {
+      var propio = resto.filter(function (t) { return t.c === mActual.codigo; })[0];
+      if (propio) {
+        resto = resto.filter(function (t) { return t !== propio; });
+        // va primero: arranca a las 12 en punto y encabeza la leyenda
+        porciones.unshift({ c: propio.c, nombre: titulo(mActual.nombre) + ' (seleccionado)', a: propio.a, color: 'var(--s8)' });
+      }
+    }
     porciones.push({ c: null, nombre: 'Otros ' + resto.length + ' municipios', a: resto.reduce(function (s, t) { return s + t.a; }, 0),
                      color: 'var(--s-otros)' });
     var cx = 110, cy = 110, R = 100, r = 62, ang = -Math.PI / 2, html = '';
