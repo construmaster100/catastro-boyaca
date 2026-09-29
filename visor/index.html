@@ -1,0 +1,1564 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catastro Boyacá</title>
+<link rel="icon" href="img/logo_web.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root {
+    --bg: #f5f4f0; --panel: #ffffff; --texto: #1f2328; --suave: #5d6470; --borde: #dcdad3;
+    --acento: #b4531f; --acento-suave: #f6e3d6; --ok: #2f7d4f; --no: #a33a3a;
+    --predio: #3a6ea5; --marca: #e0782f; --sel: #d11f5a; --nav: #1f2a36; --nav-texto: #f3f1ec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16181c; --panel: #1f2227; --texto: #e7e7e4; --suave: #9aa0a8; --borde: #34383f;
+      --acento: #f08a4b; --acento-suave: #3a2a20; --ok: #5cc58a; --no: #e27070;
+      --predio: #7aa7d6; --marca: #f39b55; --sel: #ff5c8f; --nav: #0f1419; --nav-texto: #e7e7e4;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16181c; --panel: #1f2227; --texto: #e7e7e4; --suave: #9aa0a8; --borde: #34383f;
+    --acento: #f08a4b; --acento-suave: #3a2a20; --ok: #5cc58a; --no: #e27070;
+    --predio: #7aa7d6; --marca: #f39b55; --sel: #ff5c8f; --nav: #0f1419; --nav-texto: #e7e7e4;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--texto); font: 13px/1.45 system-ui, "Segoe UI", Roboto, sans-serif;
+         display: grid; height: 100vh; overflow: hidden;
+         grid-template-columns: 250px 1fr 250px; grid-template-rows: 50px 50px 1fr;
+         grid-template-areas: "logo banner perito" "logo nav perito" "panel mapa lista"; }
+
+  /* panel derecho: listado de municipios */
+  #listaMun { grid-area: lista; width: 250px; background: var(--panel); border-left: 1px solid var(--borde);
+              display: flex; flex-direction: column; min-height: 0; }
+  #listaMun .cabeza { padding: 10px 12px 8px; border-bottom: 1px solid var(--borde); }
+  #listaMun .cabeza h2 { display: flex; justify-content: space-between; }
+  #listaMun .cabeza h2 span { text-transform: none; letter-spacing: 0; }
+  #filtroMun { width: 100%; font: inherit; color: var(--texto); background: var(--bg); border: 1px solid var(--borde);
+               border-radius: 6px; padding: 6px 8px; }
+  #filtroMun:focus { outline: 2px solid var(--acento); outline-offset: -1px; }
+  #listaMun .cabeza { position: relative; }
+  .campo-mun { position: relative; }
+  .campo-mun #filtroMun { padding-right: 30px; }
+  #quitarMun { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; border: 0;
+               border-radius: 50%; cursor: pointer; background: transparent; color: var(--suave); font-size: 13px; line-height: 1; }
+  #quitarMun:hover { background: var(--acento-suave); color: var(--texto); }
+  #quitarMun[hidden] { display: none; }
+  #listaMun .cuerpo-der { padding: 12px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 12px; }
+  #listaMun .cuerpo-der > * { flex-shrink: 0; }
+  #listaMun .ayuda-der { font-size: 11px; color: var(--suave); margin: 0; }
+  /* desplegable del selector */
+  #itemsMun { list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; position: absolute; left: 12px; right: 12px;
+              top: 66px; max-height: min(60vh, 420px); background: var(--panel); border: 1px solid var(--borde);
+              border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.22); z-index: 1500; }
+  #itemsMun[hidden] { display: none; }
+  #itemsMun li.activo { background: var(--acento-suave); outline: 1px solid var(--acento); outline-offset: -1px; }
+  #itemsMun li { display: grid; grid-template-columns: 44px 1fr auto; gap: 6px; align-items: baseline; padding: 5px 12px;
+                 cursor: pointer; border-left: 3px solid transparent; }
+  #itemsMun li:hover { background: var(--acento-suave); }
+  #itemsMun li.actual { background: var(--acento-suave); border-left-color: #0f4d2e; font-weight: 700; }
+  #itemsMun li.sin { opacity: .5; cursor: default; }
+  #itemsMun code { color: var(--acento); font-size: 11px; }
+  #itemsMun small { color: var(--suave); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+  #itemsMun .vacio { color: var(--suave); cursor: default; display: block; }
+  #btnJerarquia { width: 100%; margin-top: 8px; font: 600 12px system-ui, sans-serif; padding: 6px 8px; border-radius: 6px;
+                  border: 0; cursor: pointer; background: #0f4d2e; color: #fff; }
+  #btnJerarquia:hover { background: #166b40; }
+
+  /* resumen de areas del municipio */
+  #resumenMun { border: 1px solid #1e3a8a; border-radius: 8px; padding: 10px; display: none; }
+  #resumenMun dl { display: grid; grid-template-columns: 1fr auto; gap: 3px 8px; margin: 0; }
+  #resumenMun dt { color: var(--suave); font-size: 11px; }
+  #resumenMun dd { margin: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .barra-uso { display: flex; height: 10px; border-radius: 5px; overflow: hidden; margin: 8px 0 4px; background: #7fb069; }
+  .barra-uso i { background: #1e3a8a; min-width: 2px; }
+  .leyenda-uso { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--suave); }
+  .categoria { display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 700; color: #fff; background: #1e3a8a;
+               border-radius: 10px; padding: 2px 8px; }
+
+  /* grafico circular (dona) del area de los municipios: paleta categorica validada (7 tonos + gris "otros") */
+  :root { --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7;
+          --s8: #e34948; --s-otros: #c3c2b7; --sup-graf: #fcfcfb; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9;
+    --s8: #e66767; --s-otros: #52514e; --sup-graf: #1a1a19; } }
+  :root[data-theme="dark"] { --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300;
+                             --s7: #9085e9; --s8: #e66767; --s-otros: #52514e; --sup-graf: #1a1a19; }
+  #graficoArea { border: 1px solid var(--borde); border-radius: 8px; padding: 10px; background: var(--sup-graf); }
+  .dona { position: relative; width: 200px; margin: 4px auto 6px; }
+  .dona svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .dona svg path { stroke: var(--sup-graf); stroke-width: 0.6; cursor: pointer; transition: transform .15s; transform-origin: 110px 110px; }
+  .dona svg path:hover { filter: brightness(1.15); }
+  .dona svg path.actual { stroke: var(--texto); stroke-width: 1.5; }
+  .dona-centro { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+                 text-align: center; pointer-events: none; padding: 0 58px; }
+  .dona-centro b { font-size: 18px; font-variant-numeric: tabular-nums; color: var(--texto); line-height: 1.1; }
+  .dona-centro span { font-size: 10.5px; color: var(--suave); line-height: 1.2; }
+  .dona-tip { position: absolute; z-index: 5; pointer-events: none; background: var(--panel); color: var(--texto);
+              border: 1px solid var(--borde); border-radius: 6px; padding: 5px 8px; font-size: 11px; white-space: nowrap;
+              box-shadow: 0 4px 12px rgba(0,0,0,.18); transform: translate(-50%, calc(-100% - 8px)); }
+  .dona-tip b { font-variant-numeric: tabular-nums; }
+  .dona-leyenda { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; font-size: 11px;
+                  max-height: 230px; overflow-y: auto; position: relative; border-top: 1px solid var(--borde); padding-top: 4px; }
+  .dona-leyenda li { display: grid; grid-template-columns: 10px 1fr auto; gap: 6px; align-items: center; padding: 2px 4px;
+                     border-radius: 4px; cursor: pointer; color: var(--texto); }
+  .dona-leyenda li:hover, .dona-leyenda li.actual { background: var(--acento-suave); }
+  .dona-leyenda li.actual { font-weight: 700; }
+  .dona-leyenda i { width: 10px; height: 10px; border-radius: 2px; }
+  .dona-leyenda small { color: var(--suave); font-variant-numeric: tabular-nums; }
+
+  /* ventana de jerarquia urbana */
+  #ventanaJer { position: fixed; inset: 0; z-index: 5000; background: rgba(15, 30, 22, .6); display: flex;
+                align-items: center; justify-content: center; padding: 16px; }
+  #ventanaJer[hidden] { display: none; }
+  #ventanaJer .caja { background: var(--panel); color: var(--texto); border-radius: 12px; width: min(1180px, 100%);
+                      max-height: calc(100vh - 32px); display: flex; flex-direction: column; box-shadow: 0 12px 40px rgba(0,0,0,.4); }
+  #ventanaJer header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--borde); flex-wrap: wrap; }
+  #ventanaJer header h3 { margin: 0; font-size: 17px; color: #0f4d2e; flex: 1; }
+  #ventanaJer header button { font: 600 12px system-ui, sans-serif; padding: 6px 12px; border-radius: 6px; cursor: pointer;
+                              border: 1px solid var(--borde); background: var(--bg); color: var(--texto); }
+  #ventanaJer .categorias { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 18px; border-bottom: 1px solid var(--borde); font-size: 12px; }
+  #ventanaJer .categorias span { background: var(--bg); border: 1px solid var(--borde); border-radius: 8px; padding: 4px 8px; }
+  #ventanaJer .tabla { overflow: auto; }
+  #ventanaJer table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  #ventanaJer th, #ventanaJer td { padding: 6px 8px; border-bottom: 1px solid var(--borde); text-align: left; white-space: nowrap; }
+  #ventanaJer th { position: sticky; top: 0; background: var(--panel); cursor: pointer; font-size: 11px; text-transform: uppercase;
+                   letter-spacing: .04em; color: var(--suave); }
+  #ventanaJer th.num, #ventanaJer td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  #ventanaJer tbody tr { cursor: pointer; }
+  #ventanaJer tbody tr:hover { background: var(--acento-suave); }
+  #ventanaJer .mini-barra { display: inline-block; height: 8px; background: #1e3a8a; border-radius: 4px; vertical-align: middle; margin-right: 6px; }
+
+  /* logo del perito: esquina superior derecha, igual al logo principal (250 x 100) */
+  #logoPerito { grid-area: perito; width: 250px; height: 100px; background: var(--panel); border-left: 1px solid var(--borde);
+                border-bottom: 1px solid var(--borde); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  #logoPerito img { width: 100%; height: 100%; object-fit: contain; padding: 4px 6px; }
+
+  /* mapa departamental: esquina inferior derecha, mismo estilo que los logos (250 px de ancho) */
+  .mapa-dep { margin-top: auto; background: var(--panel); border: 1px solid var(--borde); border-radius: 8px;
+              padding: 6px 8px 8px; cursor: pointer; position: sticky; bottom: 0; box-shadow: 0 -6px 12px var(--panel); }
+  .mapa-dep h2 { margin-bottom: 3px; }
+  .mapa-dep:hover { border-color: #0f4d2e; }
+  .mapa-dep .marco { position: relative; aspect-ratio: 1200 / 995; width: 62%; margin: 0 auto; }
+  .mapa-dep img { display: block; width: 100%; height: 100%; }
+  .mapa-dep:hover img { filter: brightness(1.06); }
+  .mapa-dep .vista { position: absolute; border: 2px solid #d11f5a; background: rgba(209,31,90,.15); pointer-events: none;
+                     min-width: 6px; min-height: 6px; box-sizing: border-box; }
+  .mapa-dep .vista.punto { border-radius: 50%; width: 10px !important; height: 10px !important; transform: translate(-50%, -50%);
+                           background: #d11f5a; border-color: #fff; }
+  .leaflet-bottom.leaflet-right { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  .leaflet-bottom.leaflet-right .leaflet-control-zoom { margin: 0 10px 0 0; }
+
+  /* banner (50 px) + barra (50 px) = alto del logo (100 px) */
+  #banner { grid-area: banner; position: relative; overflow: hidden; background: #fff; border-bottom: 1px solid var(--borde); }
+  #banner img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center; }
+
+  /* logo 250x100 */
+  #logo { grid-area: logo; width: 250px; height: 100px; background: var(--panel); border-right: 1px solid var(--borde);
+          border-bottom: 1px solid var(--borde); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  #logo img { width: 100%; height: 100%; object-fit: contain; padding: 4px 6px; }
+  #logo .marcador { width: 230px; height: 84px; border: 2px dashed var(--borde); border-radius: 10px; display: flex;
+                    flex-direction: column; align-items: center; justify-content: center; color: var(--suave); text-align: center; gap: 2px; }
+  #logo .marcador b { font-size: 20px; letter-spacing: .12em; color: var(--texto); }
+
+  /* navbar 60px */
+  nav { grid-area: nav; height: 50px; background: var(--nav); color: var(--nav-texto); display: flex; align-items: center;
+        gap: 14px; padding: 0 16px; min-width: 0; }
+  #ruta { display: flex; align-items: center; gap: 6px; font-size: 14px; white-space: nowrap; overflow: hidden; min-width: 0; flex: 1; }
+  #ruta a { color: var(--nav-texto); opacity: .75; text-decoration: none; cursor: pointer; }
+  #ruta a:hover { opacity: 1; text-decoration: underline; }
+  #ruta a.actual { opacity: 1; font-weight: 600; cursor: default; text-decoration: none; }
+  #ruta span.sep { opacity: .45; }
+  nav label { font-size: 10px; opacity: .7; text-transform: uppercase; letter-spacing: .06em; display: block; margin-bottom: 1px; line-height: 1.1; }
+  nav select { font: inherit; font-size: 12px; background: rgba(255,255,255,.08); color: var(--nav-texto); border: 1px solid rgba(255,255,255,.22);
+               border-radius: 6px; padding: 2px 6px; width: 175px; height: 24px; }
+  nav select option { color: #1f2328; background: #fff; }
+  nav select:focus { outline: 2px solid var(--acento); }
+  #carga { font-size: 12px; opacity: 0; transition: opacity .2s; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  #carga.activo { opacity: 1; }
+  #carga i { width: 12px; height: 12px; border: 2px solid var(--nav-texto); border-top-color: transparent; border-radius: 50%;
+             animation: giro .8s linear infinite; }
+  @keyframes giro { to { transform: rotate(360deg); } }
+
+  /* panel lateral (debajo del logo) */
+  aside { grid-area: panel; background: var(--panel); border-right: 1px solid var(--borde); overflow-y: auto; padding: 12px;
+          display: flex; flex-direction: column; gap: 12px; width: 250px; }
+  aside > * { flex-shrink: 0; }   /* el panel hace scroll en vez de comprimir (y encimar) su contenido */
+  #mapa { grid-area: mapa; }
+  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--suave); margin: 0 0 5px; }
+  label.campo { font-size: 11px; color: var(--suave); display: block; margin-bottom: 3px; }
+  input#codigo { font: 14px ui-monospace, Consolas, monospace; letter-spacing: .02em; color: var(--texto); background: var(--bg);
+                 border: 1px solid var(--borde); border-radius: 6px; padding: 7px 8px; width: 100%; }
+  input#codigo:focus { outline: 2px solid var(--acento); outline-offset: -1px; }
+  .ayuda { font-size: 11px; color: var(--suave); margin: 4px 0 0; }
+  #estado { font-size: 12px; color: var(--suave); min-height: 1.2em; }
+  #segmentos { display: flex; flex-wrap: wrap; gap: 2px; font: 11px ui-monospace, Consolas, monospace; margin-top: 6px; }
+  #segmentos span { padding: 1px 3px; border-radius: 3px; background: var(--bg); border: 1px solid var(--borde); color: var(--suave); }
+  #segmentos span.lleno { background: var(--acento-suave); color: var(--texto); border-color: var(--acento); }
+  ol#jerarquia { list-style: none; margin: 0; padding: 0; }
+  ol#jerarquia li { display: grid; grid-template-columns: 10px 84px 1fr; gap: 5px; padding: 4px 0;
+                    border-bottom: 1px dashed var(--borde); align-items: baseline; }
+  ol#jerarquia .punto { width: 8px; height: 8px; border-radius: 50%; background: var(--borde); align-self: center; }
+  ol#jerarquia li.ok .punto { background: var(--ok); }
+  ol#jerarquia li.no .punto { background: var(--no); }
+  ol#jerarquia .nivel { color: var(--suave); font-size: 11px; }
+  ol#jerarquia .valor { font-weight: 600; overflow-wrap: anywhere; }
+  ol#jerarquia .valor code { font-weight: 400; color: var(--suave); margin-left: 3px; }
+  #ficha { border: 1px solid var(--acento); border-radius: 8px; padding: 10px; display: none; }
+  #ficha dl { display: grid; grid-template-columns: 78px 1fr; gap: 3px 6px; margin: 0 0 8px; }
+  #ficha dt { color: var(--suave); font-size: 11px; }
+  #ficha dd { margin: 0; overflow-wrap: anywhere; }
+  #ficha .acciones { display: flex; gap: 5px; flex-wrap: wrap; }
+  #ficha button { font: inherit; font-size: 11px; cursor: pointer; border-radius: 6px; padding: 5px 8px;
+                  background: transparent; color: var(--texto); border: 1px solid var(--borde); }
+  #ficha button.pri { background: var(--acento); color: #fff; border-color: var(--acento); }
+  #resultados { max-height: 220px; overflow-y: auto; border: 1px solid var(--borde); border-radius: 6px; display: none; }
+  #resultados div { padding: 5px 7px; cursor: pointer; font: 11px ui-monospace, Consolas, monospace;
+                    border-bottom: 1px solid var(--borde); display: flex; justify-content: space-between; gap: 6px; }
+  #resultados div:hover { background: var(--acento-suave); }
+  #resultados div span { color: var(--suave); font-family: system-ui, sans-serif; white-space: nowrap; }
+  .leyenda { display: grid; gap: 3px; font-size: 11px; color: var(--suave); }
+  .leyenda i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .leaflet-container { background: var(--bg); font: inherit; }
+  /* identificadores sobre el mapa */
+  .etq { background: none; border: 0; }
+  .etq div { transform: translate(-50%, -50%); display: inline-block; white-space: nowrap; cursor: pointer;
+             font: 600 11px/1.2 ui-monospace, Consolas, monospace; color: var(--texto); background: var(--panel);
+             border: 1px solid var(--borde); border-radius: 10px; padding: 2px 6px; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+  .etq div small { font-weight: 400; color: var(--suave); margin-left: 3px; font-family: system-ui, sans-serif; }
+  .etq.mun div { font-size: 12px; border-color: var(--acento); text-align: center; line-height: 1.15; }
+  .etq.mun div b { color: var(--acento); display: block; }
+  .etq.sector div { border-color: var(--acento); background: var(--acento-suave); }
+  .etq.manzana div { font-size: 10px; padding: 1px 4px; }
+  .etq.predio div { font-size: 9px; padding: 0 3px; border-radius: 4px; box-shadow: none; opacity: .9; }
+  /* area y cotas del predio seleccionado */
+  .cota, .area-lote { background: none; border: 0; pointer-events: none; }
+  .cota div { position: absolute; white-space: nowrap; font: 700 11px/1 system-ui, sans-serif; color: #7a1030;
+              background: rgba(255,255,255,.92); border: 1px solid var(--sel); border-radius: 3px; padding: 2px 4px; }
+  .area-lote div { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; text-align: center;
+                   font: 800 13px/1.15 system-ui, sans-serif; color: #fff; background: var(--sel);
+                   border-radius: 6px; padding: 3px 7px; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+  .area-lote div small { display: block; font-weight: 500; font-size: 10px; opacity: .9; }
+  .leaflet-container.lejos .cota, .leaflet-container.lejos .area-lote { display: none; }
+  #logo { cursor: pointer; }
+  /* grilla de coordenadas */
+  .grilla-etq { background: none; border: 0; pointer-events: none; }
+  .grilla-etq div { position: absolute; white-space: nowrap; font: 600 10px/1 ui-monospace, Consolas, monospace;
+                    color: #0f4d2e; background: rgba(255,255,255,.85); padding: 2px 4px; border-radius: 3px; }
+  .grilla-etq.e div { transform: translate(-50%, 4px); }
+  .grilla-etq.n div { transform: translate(4px, -50%); }
+  .control-grilla { background: var(--panel); color: var(--texto); border: 1px solid var(--borde); border-radius: 8px;
+                    padding: 6px 9px; font-size: 11px; box-shadow: 0 1px 5px rgba(0,0,0,.2); min-width: 190px; }
+  .control-grilla label { display: flex; align-items: center; gap: 6px; font-weight: 600; cursor: pointer; }
+  .control-grilla .dato { color: var(--suave); margin-top: 2px; font-family: ui-monospace, Consolas, monospace; }
+
+  @media (max-width: 800px) {
+    body { overflow: auto; height: auto; grid-template-columns: 60px 1fr; grid-template-rows: 60px 60vh auto auto;
+           grid-template-areas: "logo nav" "mapa mapa" "panel panel" "lista lista"; }
+    #listaMun { width: auto; border-left: 0; max-height: 60vh; }
+    #banner, #logoPerito { display: none; }
+    nav { height: 60px; }
+    #logo { width: 60px; height: 60px; }
+    #logo .marcador { width: 50px; height: 50px; border-width: 1px; }
+    #logo .marcador b { font-size: 10px; } #logo .marcador small { display: none; }
+    nav { gap: 8px; padding: 0 8px; }
+    #ruta, #carga { display: none; }
+    nav select { width: 100%; }
+    nav > div { flex: 1; min-width: 0; }
+    aside { width: auto; border-right: 0; }
+  }
+</style>
+</head>
+<body>
+<header id="banner"><img src="img/banner_web.jpg" alt="Catastro Boyacá"></header>
+<div id="logoPerito"><img src="img/logoperito_web.png" alt="Perito Catastral e Inmobiliario Juan Yamil López #01" width="250" height="100"></div>
+
+<div id="logo" title="Ver todo Boyacá">
+  <img src="img/logo_web.png" alt="Catastro Boyacá" width="250" height="100">
+</div>
+
+<nav>
+  <div id="ruta"></div>
+  <div id="carga"><i></i><span>Cargando…</span></div>
+  <div><label for="selDep">Departamento</label><select id="selDep"></select></div>
+  <div><label for="selMun">Municipio</label><select id="selMun"></select></div>
+</nav>
+
+<aside>
+  <section>
+    <label class="campo" for="codigo">Número predial (2 a 30 dígitos) o anterior (20)</label>
+    <input id="codigo" inputmode="numeric" autocomplete="off" placeholder="Ej.: 15001…">
+    <p class="ayuda">2 = departamento · 5 = municipio · 7 = zona · 17 = manzana/vereda · 30 = predio. Enter para buscar.</p>
+    <div id="segmentos"></div>
+  </section>
+  <div id="estado"></div>
+  <section>
+    <h2>Ubicación del código</h2>
+    <ol id="jerarquia"></ol>
+  </section>
+  <section id="ficha">
+    <h2>Predio identificado</h2>
+    <dl id="fichaDatos"></dl>
+    <div class="acciones">
+      <button class="pri" id="btnCopiar">Copiar número</button>
+      <button id="btnGmaps">Google Maps</button>
+      <button class="pri" id="btnFicha">🖨 Ficha / Imprimir</button>
+      <button id="btnGeo">GeoJSON</button>
+      <button id="btnQuitar" title="También con la tecla Esc o clic en un espacio vacío del mapa">✕ Quitar selección</button>
+    </div>
+  </section>
+  <section>
+    <h2 id="tituloRes">Predios que coinciden</h2>
+    <div id="resultados"></div>
+  </section>
+  <div class="leyenda">
+    <span><i style="background:var(--predio)"></i>Predios del municipio</span>
+    <span><i style="background:var(--marca)"></i>Coinciden con el código</span>
+    <span><i style="background:var(--sel)"></i>Predio identificado</span>
+  </div>
+  <section class="mapa-dep" id="mapaDep" title="Ver todo el departamento de Boyacá">
+    <h2>Ubicación en Boyacá</h2>
+    <div class="marco"><img src="img/mapa_departamental_mini.png" alt="Mapa departamental de Boyacá">
+      <div class="vista" id="vistaMini" hidden></div></div>
+  </section>
+</aside>
+
+<div id="mapa"></div>
+
+<div id="ventanaJer" hidden role="dialog" aria-modal="true" aria-label="Jerarquía urbana">
+  <div class="caja">
+    <header>
+      <h3>Jerarquía urbana de los municipios de Boyacá</h3>
+      <button id="jerCsv" type="button">⬇ Descargar CSV</button>
+      <button id="jerCerrar" type="button">✕ Cerrar</button>
+    </header>
+    <div class="categorias" id="jerCategorias"></div>
+    <div class="tabla"><table><thead><tr id="jerCabeza"></tr></thead><tbody id="jerCuerpo"></tbody></table></div>
+  </div>
+</div>
+
+<section id="listaMun" aria-label="Municipios">
+  <div class="cabeza">
+    <h2>Municipios <span id="cuentaMun"></span></h2>
+    <div class="campo-mun">
+      <input id="filtroMun" type="text" autocomplete="off" placeholder="Buscar municipio o código…"
+             role="combobox" aria-expanded="false" aria-controls="itemsMun">
+      <button id="quitarMun" type="button" title="Quitar el municipio (volver a todo Boyacá) · Esc" hidden>✕</button>
+    </div>
+    <ul id="itemsMun" role="listbox" hidden></ul>
+    <button id="btnJerarquia" type="button">📊 Jerarquía urbana y áreas</button>
+  </div>
+  <div class="cuerpo-der" id="cuerpoDer">
+    <p class="ayuda-der" id="ayudaDer">Escriba el nombre o el código DANE del municipio y elíjalo de la lista (↑ ↓ y Enter).</p>
+    <section id="resumenMun">
+      <h2 id="resumenTitulo">Resumen del municipio</h2>
+      <dl id="resumenDatos"></dl>
+      <div class="barra-uso" id="barraUso"><i></i></div>
+      <div class="leyenda-uso"><span id="lyUrb"></span><span id="lyRur"></span></div>
+      <span class="categoria" id="resumenCat"></span>
+    </section>
+    <section id="graficoArea">
+      <h2>Área de los municipios en Boyacá</h2>
+      <div class="dona"><svg id="donaSvg" viewBox="0 0 220 220" role="img" aria-label="Gráfico circular del área de los municipios"></svg>
+        <div class="dona-centro" id="donaCentro"></div><div class="dona-tip" id="donaTip" hidden></div></div>
+      <ul class="dona-leyenda" id="donaLeyenda"></ul>
+    </section>
+  </div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.js"></script>
+<script>
+(function () {
+  var DATOS = 'datos/';
+  var COLOMBIA = [[-4.3, -79.1], [13.5, -66.8]];
+  var MAX_LISTA = 300;
+  // Niveles de zoom: que se muestra en cada uno
+  var ZOOM_REGIONES = 11;  // carga municipios visibles y muestra regiones por sector (zona-sector)
+  var ZOOM_MANZANAS = 14;  // identificadores de manzana / vereda
+  var ZOOM_PREDIOS = 15;   // poligonos de los predios
+  var ZOOM_NUMEROS = 18;   // numero de terreno de cada predio
+  var MAX_ETIQUETAS = 500;
+  var MAX_VISIBLES = 3;
+  var MAX_CACHE = 6;
+  // Departamentos proyectados: aparecen en el selector pero aun sin datos
+  var PROYECTADOS = [{ codigo: '25', nombre: 'Cundinamarca' }, { codigo: '85', nombre: 'Casanare' }];
+
+  var NIVELES = [
+    { hasta: 2, nombre: 'Departamento' }, { hasta: 5, nombre: 'Municipio' }, { hasta: 7, nombre: 'Zona' },
+    { hasta: 9, nombre: 'Sector' }, { hasta: 11, nombre: 'Comuna' }, { hasta: 13, nombre: 'Barrio' },
+    { hasta: 17, nombre: 'Manzana / vereda' }, { hasta: 21, nombre: 'Terreno' }, { hasta: 22, nombre: 'Condición' },
+    { hasta: 24, nombre: 'Edificio / torre' }, { hasta: 26, nombre: 'Piso' }, { hasta: 30, nombre: 'Unidad predial' }
+  ];
+
+  var css = function (v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); };
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------------- mapa
+  var lienzo = L.canvas({ padding: 0.3, tolerance: 4 });
+  var mapa = L.map('mapa', { preferCanvas: true, renderer: lienzo, zoomSnap: 0.5, wheelPxPerZoomLevel: 90, zoomControl: false,
+                             attributionControl: false }).fitBounds(COLOMBIA);
+  L.control.attribution({ position: 'bottomleft', prefix: '<a href="https://leafletjs.com">Leaflet</a>' }).addTo(mapa);
+  // Mapa departamental (en el panel izquierdo); clic = volver a todo el departamento
+  $('mapaDep').addEventListener('click', function () { ir('15'); });
+
+  // Imagen del departamento georreferenciada (coincide con el limite oficial): capa raster sobre el mapa
+  var RASTER = { imagen: 'img/mapa_departamental_raster.png', limites: [[4.638312, -74.651678], [6.99176, -71.995337]] };
+  mapa.createPane('raster').style.zIndex = 250;                      // encima del mapa base, debajo de predios
+  mapa.getPane('raster').style.pointerEvents = 'none';
+  var capaRaster = L.imageOverlay(RASTER.imagen, RASTER.limites, { pane: 'raster', opacity: 0.85, interactive: false });
+  var rasterActivo = true;
+  function opacidadRaster() {
+    var z = mapa.getZoom();
+    capaRaster.setOpacity(z < 9.5 ? 0.85 : z < 10.5 ? 0.3 : 0);
+  }
+  capaRaster.addTo(mapa);
+  mapa.on('zoomend', opacidadRaster);
+  mapa.on('overlayadd overlayremove', function (e) { if (e.layer === capaRaster) rasterActivo = e.type === 'overlayadd'; });
+
+  // Ubicacion de la vista actual en el mapa departamental de la esquina
+  function yMerc(lat) { return Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)); }
+  function fraccion(ll) {
+    var L0 = RASTER.limites;
+    return { x: (ll.lng - L0[0][1]) / (L0[1][1] - L0[0][1]),
+             y: (yMerc(L0[1][0]) - yMerc(ll.lat)) / (yMerc(L0[1][0]) - yMerc(L0[0][0])) };
+  }
+  function actualizarMini() {
+    var el = $('vistaMini');
+    if (!el) return;
+    var b = mapa.getBounds(), a = fraccion(b.getNorthWest()), c = fraccion(b.getSouthEast());
+    var x0 = Math.max(0, a.x), y0 = Math.max(0, a.y), x1 = Math.min(1, c.x), y1 = Math.min(1, c.y);
+    if (x1 <= 0 || y1 <= 0 || x0 >= 1 || y0 >= 1 || (x1 - x0 > 0.95 && y1 - y0 > 0.95)) { el.hidden = true; return; }
+    el.hidden = false;
+    var chico = (x1 - x0) < 0.03 && (y1 - y0) < 0.03;                 // vista muy pequena: se marca con un punto
+    el.classList.toggle('punto', chico);
+    el.style.left = ((chico ? (x0 + x1) / 2 : x0) * 100) + '%';
+    el.style.top = ((chico ? (y0 + y1) / 2 : y0) * 100) + '%';
+    el.style.width = chico ? '' : ((x1 - x0) * 100) + '%';
+    el.style.height = chico ? '' : ((y1 - y0) * 100) + '%';
+  }
+  mapa.on('moveend', actualizarMini);
+  L.control.zoom({ position: 'bottomright' }).addTo(mapa);   // queda encima del mapa departamental
+  var calles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { maxZoom: 20, maxNativeZoom: 19, attribution: '&copy; OpenStreetMap · Datos: IGAC' }).addTo(mapa);
+  var satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 20, maxNativeZoom: 19, attribution: 'Esri World Imagery · Datos: IGAC' });
+  var controlCapas = L.control.layers({ 'Calles': calles, 'Satélite': satelite }, null, { position: 'topright' }).addTo(mapa);
+  controlCapas.addOverlay(capaRaster, 'Mapa departamental (ilustrado)');
+  L.control.scale({ imperial: false }).addTo(mapa);
+
+  // Contorno del departamento: linea gruesa siempre visible (debajo de etiquetas, encima de predios)
+  mapa.createPane('contorno').style.zIndex = 450;
+  mapa.getPane('contorno').style.pointerEvents = 'none';
+  var lienzoContorno = L.canvas({ pane: 'contorno', padding: 0.3 });
+  fetch(DATOS + 'departamentos.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (fc) {
+    if (!fc) return;
+    L.geoJSON(fc, { renderer: lienzoContorno, interactive: false,
+                    style: { color: '#ffffff', weight: 8, opacity: 0.85, fill: false } }).addTo(mapa);
+    L.geoJSON(fc, { renderer: lienzoContorno, interactive: false,
+                    style: { color: '#0f4d2e', weight: 4, opacity: 1, fill: false } }).addTo(mapa);
+  }).catch(function () {});
+
+  // ---------------- grilla de coordenadas (MAGNA-SIRGAS / Origen Nacional, EPSG:9377, metros)
+  proj4.defs('EPSG:9377', '+proj=tmerc +lat_0=4 +lon_0=-73 +k=0.9992 +x_0=5000000 +y_0=2000000 ' +
+                          '+ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
+  var aPlano = proj4('EPSG:4326', 'EPSG:9377');
+  var ESPACIADOS = [10, 100, 1000, 10000, 100000];
+  var grillaActiva = true;
+  mapa.createPane('grilla').style.zIndex = 430;
+  mapa.getPane('grilla').style.pointerEvents = 'none';
+  var lienzoGrilla = L.canvas({ pane: 'grilla', padding: 0.2 });
+  var capaGrilla = L.layerGroup().addTo(mapa);
+
+  function numero(v) { return Math.round(v).toLocaleString('es-CO'); }
+  function aLatLng(e, n) { var r = aPlano.inverse([e, n]); return L.latLng(r[1], r[0]); }
+
+  function dibujarGrilla() {
+    capaGrilla.clearLayers();
+    if (!grillaActiva) { $('grillaPaso').textContent = 'apagada'; return; }
+    var b = mapa.getBounds(), tam = mapa.getSize();
+    var esquinas = [b.getSouthWest(), b.getNorthWest(), b.getNorthEast(), b.getSouthEast()]
+      .map(function (ll) { return aPlano.forward([ll.lng, ll.lat]); });
+    var minE = Math.min.apply(0, esquinas.map(function (c) { return c[0]; })), maxE = Math.max.apply(0, esquinas.map(function (c) { return c[0]; }));
+    var minN = Math.min.apply(0, esquinas.map(function (c) { return c[1]; })), maxN = Math.max.apply(0, esquinas.map(function (c) { return c[1]; }));
+    var mpp = (maxE - minE) / tam.x;                                   // metros por pixel
+    var paso = ESPACIADOS.filter(function (s) { return s / mpp >= 55; })[0] || ESPACIADOS[ESPACIADOS.length - 1];
+    var mayor = paso * 10;
+    $('grillaPaso').textContent = 'líneas cada ' + numero(paso) + ' m';
+    var norteVista = b.getNorth(), oesteVista = b.getWest();
+    // etiquetas cada 1, 2, 5 o 10 lineas para que queden separadas al menos ~110 px (Este) / ~45 px (Norte)
+    var cadaE = paso * ([1, 2, 5, 10].filter(function (k) { return k * paso / mpp >= 110; })[0] || 10);
+    var cadaN = paso * ([1, 2, 5, 10].filter(function (k) { return k * paso / mpp >= 45; })[0] || 10);
+
+    function linea(puntos, esMayor) {
+      L.polyline(puntos, { renderer: lienzoGrilla, interactive: false, color: '#0f4d2e',
+                           weight: esMayor ? 1.4 : 0.7, opacity: esMayor ? 0.6 : 0.35 }).addTo(capaGrilla);
+    }
+    function etiqueta(ll, clase, texto) {
+      L.marker(ll, { interactive: false, keyboard: false, zIndexOffset: -1000, icon: L.divIcon({
+        className: 'grilla-etq ' + clase, iconSize: null, html: '<div>' + texto + '</div>' }), pane: 'grilla' }).addTo(capaGrilla);
+    }
+    var pasosN = 6, e, n, i, pts;
+    for (e = Math.ceil(minE / paso) * paso; e <= maxE; e += paso) {       // lineas de igual Este (verticales)
+      pts = [];
+      for (i = 0; i <= pasosN; i++) pts.push(aLatLng(e, minN + (maxN - minN) * i / pasosN));
+      var esMayorE = e % mayor === 0;
+      linea(pts, esMayorE);
+      if (e % cadaE === 0) etiqueta(L.latLng(norteVista, aLatLng(e, (minN + maxN) / 2).lng), 'e', 'E ' + numero(e));
+    }
+    for (n = Math.ceil(minN / paso) * paso; n <= maxN; n += paso) {       // lineas de igual Norte (horizontales)
+      pts = [];
+      for (i = 0; i <= pasosN; i++) pts.push(aLatLng(minE + (maxE - minE) * i / pasosN, n));
+      var esMayorN = n % mayor === 0;
+      linea(pts, esMayorN);
+      if (n % cadaN === 0) etiqueta(L.latLng(aLatLng((minE + maxE) / 2, n).lat, oesteVista), 'n', 'N ' + numero(n));
+    }
+  }
+
+  var ControlGrilla = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd: function () {
+      var div = L.DomUtil.create('div', 'control-grilla');
+      div.innerHTML = '<label><input type="checkbox" id="grillaSi" checked> Grilla de coordenadas</label>' +
+        '<div class="dato" id="grillaPaso"></div><div class="dato" id="grillaCursor">MAGNA-SIRGAS Origen Nacional</div>';
+      L.DomEvent.disableClickPropagation(div);
+      return div;
+    }
+  });
+  new ControlGrilla().addTo(mapa);
+  $('grillaSi').addEventListener('change', function () { grillaActiva = this.checked; dibujarGrilla(); });
+  mapa.on('moveend', dibujarGrilla);
+  mapa.on('mousemove', function (ev) {
+    var c = aPlano.forward([ev.latlng.lng, ev.latlng.lat]);
+    $('grillaCursor').textContent = 'E ' + numero(c[0]) + ' · N ' + numero(c[1]);
+  });
+  dibujarGrilla();
+
+  var capaMunicipios = L.layerGroup().addTo(mapa);
+  var capaNombres = L.layerGroup().addTo(mapa);     // codigo + nombre de cada municipio
+  var capaEtiquetas = L.layerGroup().addTo(mapa);   // sectores, manzanas/veredas o numeros de predio
+  var capasPredios = {};
+  var capaMarca = null, capaSel = null;
+
+  // ---------------- estado
+  var indice = null, deps = {}, muns = {}, limites = {};
+  var cache = {}, pendientes = {};
+  var munActual = null, depActual = null, seleccion = null;
+  var cargando = 0;
+
+  function estado(t) { $('estado').textContent = t || ''; }
+  function indicador(delta) {
+    cargando = Math.max(0, cargando + delta);
+    $('carga').classList.toggle('activo', cargando > 0);
+  }
+  function limpio(v) { return (v || '').replace(/\D/g, '').slice(0, 30); }
+  function bboxLL(b) { return [[b[1], b[0]], [b[3], b[2]]]; }
+  function unirBbox(lista) {
+    lista = lista.filter(Boolean);
+    if (!lista.length) return null;
+    return [Math.min.apply(0, lista.map(function (b) { return b[0]; })), Math.min.apply(0, lista.map(function (b) { return b[1]; })),
+            Math.max.apply(0, lista.map(function (b) { return b[2]; })), Math.max.apply(0, lista.map(function (b) { return b[3]; }))];
+  }
+  function fmt(n, d) { return n == null ? '—' : Number(n).toLocaleString('es-CO', { maximumFractionDigits: d == null ? 2 : d }); }
+  function titulo(t) { return (t || '').toLowerCase().replace(/(^|[\s(.-])\S/g, function (s) { return s.toUpperCase(); }); }
+
+  // ---------------- carga inicial
+  var pedirLimites = fetch(DATOS + 'limites.json').then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (fc) {
+      (fc ? fc.features : []).forEach(function (f) {
+        var cod = String(f.properties.CODIGO || '').replace(/\D/g, '');
+        if (cod.length === 4) cod = '0' + cod;
+        limites[cod.slice(-5)] = f;
+      });
+    }).catch(function () {});
+  indicador(1);
+  Promise.all([fetch(DATOS + 'indice.json').then(function (r) {
+    if (!r.ok) throw new Error('No se encontró visor/datos/indice.json. Ejecute exportar_web.py.');
+    return r.json();
+  }), pedirLimites]).then(function (res) {
+    indicador(-1);
+    indice = res[0];
+    indice.departamentos.forEach(function (d) {
+      d.bbox = unirBbox(d.municipios.map(function (m) { return m.bbox; }));
+      deps[d.codigo] = d;
+      d.municipios.forEach(function (m) { m.dep = d; muns[m.codigo] = m; });
+    });
+    llenarDeps();
+    crearNombresMunicipios();
+    llenarListaMun();
+    var inicial = limpio(location.hash.slice(1)) || (indice.departamentos.length === 1 ? indice.departamentos[0].codigo : '');
+    $('codigo').value = inicial;
+    buscar();
+  }).catch(function (e) { indicador(-1); estado(e.message + ' (Abra el visor con 4_ABRIR_VISOR.bat)'); });
+
+  function llenarDeps() {
+    var s = $('selDep');
+    s.innerHTML = '<option value="">— Departamento —</option>';
+    indice.departamentos.forEach(function (d) {
+      var n = d.municipios.filter(function (m) { return m.bbox; }).length;
+      s.add(new Option(titulo(d.nombre) + ' (' + n + ' mun.)', d.codigo));
+    });
+    PROYECTADOS.filter(function (p) { return !deps[p.codigo]; }).forEach(function (p) {
+      var o = new Option(p.nombre + ' — proyectado', p.codigo);
+      o.disabled = true;
+      s.add(o);
+    });
+  }
+  function llenarMuns(dep) {
+    var s = $('selMun');
+    s.innerHTML = '<option value="">— Municipio —</option>';
+    s.disabled = !dep;
+    if (!dep) return;
+    dep.municipios.slice().sort(function (a, b) { return a.nombre.localeCompare(b.nombre, 'es'); }).forEach(function (m) {
+      var o = new Option(titulo(m.nombre) + (m.bbox ? '' : ' (sin datos)'), m.codigo);
+      o.disabled = !m.bbox;
+      s.add(o);
+    });
+  }
+  $('selDep').addEventListener('change', function () { ir(this.value); });
+  $('selMun').addEventListener('change', function () { ir(this.value || $('selDep').value); });
+  function ir(codigo) { $('codigo').value = codigo; buscar(); }
+
+  // ---------------- carga de municipios (con cache y sin pedir dos veces lo mismo)
+  function cargarMunicipio(m) {
+    if (cache[m.codigo]) return Promise.resolve(cache[m.codigo]);
+    if (pendientes[m.codigo]) return pendientes[m.codigo];
+    indicador(1);
+    $('carga').lastElementChild.textContent = 'Cargando ' + titulo(m.nombre) + '…';
+    pendientes[m.codigo] = fetch(DATOS + m.archivo).then(function (r) { return r.json(); }).then(function (fc) {
+      var libres = Object.keys(cache).filter(function (k) { return !capasPredios[k]; });
+      while (Object.keys(cache).length >= MAX_CACHE && libres.length) delete cache[libres.shift()];
+      cache[m.codigo] = fc.features;
+      return fc.features;
+    }).finally(function () { delete pendientes[m.codigo]; indicador(-1); });
+    return pendientes[m.codigo];
+  }
+
+  // Crea la capa de poligonos (no la muestra: eso lo decide actualizarVista segun el zoom)
+  function dibujarMunicipio(m, feats) {
+    if (capasPredios[m.codigo]) return;
+    capasPredios[m.codigo] = L.geoJSON({ type: 'FeatureCollection', features: feats }, {
+      renderer: lienzo, smoothFactor: 1.5,
+      style: { color: css('--predio'), weight: 0.6, fillOpacity: 0.07 },
+      onEachFeature: function (f, capa) { capa.on('click', function (e) { e.originalEvent._enPredio = true; elegir(f, true); }); }
+    });
+  }
+
+  // Agrupa los predios de un municipio por los primeros "largo" digitos del codigo
+  // (9 = zona+sector, 17 = manzana/vereda). Se calcula una vez y se guarda.
+  var grupos = {};
+  function agrupar(m, largo) {
+    var clave = m.codigo + ':' + largo;
+    if (grupos[clave]) return grupos[clave];
+    var acum = {};
+    (cache[m.codigo] || []).forEach(function (f) {
+      var p = f.properties, cod = (p.NUMERO_CATASTRAL || '').slice(0, largo);
+      if (cod.length < largo || p.LATITUD == null) return;
+      var g = acum[cod] || (acum[cod] = { codigo: cod, n: 0, lat: 0, lng: 0 });
+      g.n++; g.lat += p.LATITUD; g.lng += p.LONGITUD;
+    });
+    grupos[clave] = Object.keys(acum).map(function (k) {
+      var g = acum[k]; g.lat /= g.n; g.lng /= g.n; return g;
+    });
+    return grupos[clave];
+  }
+
+  function etiqueta(lat, lng, clase, html, titulo, codigo) {
+    return L.marker([lat, lng], {
+      icon: L.divIcon({ className: 'etq ' + clase, html: '<div title="' + titulo + '">' + html + '</div>', iconSize: null }),
+      keyboard: false
+    }).on('click', function () { ir(codigo); });
+  }
+
+  // ---------------- navegacion por niveles de zoom
+  function cruza(b, v) { return b && b[0] <= v.getEast() && b[2] >= v.getWest() && b[1] <= v.getNorth() && b[3] >= v.getSouth(); }
+  function distancia(m, c) {
+    return Math.pow((m.bbox[0] + m.bbox[2]) / 2 - c.lng, 2) + Math.pow((m.bbox[1] + m.bbox[3]) / 2 - c.lat, 2);
+  }
+  function municipiosEnVista() {
+    var v = mapa.getBounds(), c = v.getCenter();
+    var lista = Object.keys(muns).map(function (k) { return muns[k]; })
+      .filter(function (m) { return m.archivo && cruza(m.bbox, v); })
+      .sort(function (a, b) { return distancia(a, c) - distancia(b, c); })
+      .slice(0, MAX_VISIBLES);
+    if (munActual && lista.indexOf(munActual) === -1 && cruza(munActual.bbox, v)) lista.unshift(munActual);
+    return lista;
+  }
+
+  var pintando = null;
+  function actualizarVista() {
+    if (!indice) return;
+    cancelAnimationFrame(pintando);
+    pintando = requestAnimationFrame(pintarVista);
+  }
+  function pintarVista() {
+    var z = mapa.getZoom(), v = mapa.getBounds().pad(0.1);
+    // Nombres y codigos de municipio: solo mientras no se esta a nivel de manzana
+    if (z < ZOOM_MANZANAS) { if (!mapa.hasLayer(capaNombres)) capaNombres.addTo(mapa); pintarNombres(); }
+    else if (mapa.hasLayer(capaNombres)) mapa.removeLayer(capaNombres);
+
+    var enVista = z >= ZOOM_REGIONES ? municipiosEnVista()
+                : (munActual && cruza(munActual.bbox, mapa.getBounds()) ? [munActual] : []);
+    var codigosVista = enVista.map(function (m) { return m.codigo; });
+
+    // Poligonos de predios: solo a nivel de calle
+    Object.keys(capasPredios).forEach(function (k) {
+      var mostrar = z >= ZOOM_PREDIOS && codigosVista.indexOf(k) !== -1;
+      if (mostrar && !mapa.hasLayer(capasPredios[k])) capasPredios[k].addTo(mapa);
+      if (!mostrar && mapa.hasLayer(capasPredios[k])) mapa.removeLayer(capasPredios[k]);
+      if (codigosVista.indexOf(k) === -1 && (!munActual || k !== munActual.codigo)) delete capasPredios[k];
+    });
+    if (capaMarca) capaMarca.bringToFront();
+    if (capaSel) capaSel.bringToFront();
+
+    // Identificadores
+    capaEtiquetas.clearLayers();
+    var total = 0;
+    enVista.forEach(function (m) {
+      if (!cache[m.codigo]) {
+        cargarMunicipio(m).then(function (feats) { dibujarMunicipio(m, feats); actualizarVista(); })
+          .catch(function (e) { estado('Error al cargar ' + m.nombre + ': ' + e.message); });
+        return;
+      }
+      dibujarMunicipio(m, cache[m.codigo]);
+      if (z >= ZOOM_PREDIOS && !mapa.hasLayer(capasPredios[m.codigo])) capasPredios[m.codigo].addTo(mapa);
+      if (z < ZOOM_MANZANAS) {
+        agrupar(m, 9).forEach(function (g) {          // zona + sector
+          var zona = g.codigo.slice(5, 7), sector = g.codigo.slice(7, 9);
+          capaEtiquetas.addLayer(etiqueta(g.lat, g.lng, 'sector', zona + '-' + sector + '<small>' + fmt(g.n, 0) + '</small>',
+            titulo(m.nombre) + ' · zona ' + zona + (zona === '00' ? ' (rural)' : zona === '01' ? ' (urbana)' : '') +
+            ' · sector ' + sector + ' · ' + g.n + ' predios · ' + g.codigo, g.codigo));
+        });
+      } else if (z < ZOOM_NUMEROS) {
+        agrupar(m, 17).forEach(function (g) {         // manzana / vereda
+          if (total >= MAX_ETIQUETAS || !v.contains([g.lat, g.lng])) return;
+          total++;
+          capaEtiquetas.addLayer(etiqueta(g.lat, g.lng, 'manzana', g.codigo.slice(13, 17),
+            (g.codigo.slice(5, 7) === '00' ? 'Vereda ' : 'Manzana ') + g.codigo.slice(13, 17) + ' · ' + g.n + ' predios · ' + g.codigo, g.codigo));
+        });
+      } else {
+        cache[m.codigo].forEach(function (f) {        // numero de terreno de cada predio
+          var p = f.properties;
+          if (total >= MAX_ETIQUETAS || p.LATITUD == null || !v.contains([p.LATITUD, p.LONGITUD])) return;
+          total++;
+          capaEtiquetas.addLayer(etiqueta(p.LATITUD, p.LONGITUD, 'predio', p.NUMERO_CATASTRAL.slice(17, 21),
+            p.NUMERO_CATASTRAL, p.NUMERO_CATASTRAL));
+        });
+      }
+    });
+  }
+  mapa.on('moveend', actualizarVista);
+
+  // Etiquetas de municipio: se calculan los centros una vez y se dibujan solo las que no se enciman
+  var centrosMun = [];
+  function crearNombresMunicipios() {
+    centrosMun = Object.keys(muns).map(function (k) { return muns[k]; }).filter(function (m) { return m.bbox; })
+      .map(function (m) {
+        var c = limites[m.codigo] ? L.geoJSON(limites[m.codigo]).getBounds().getCenter()
+                                  : L.latLng((m.bbox[1] + m.bbox[3]) / 2, (m.bbox[0] + m.bbox[2]) / 2);
+        return { m: m, c: c, peso: m.urbanos + m.rurales, capital: m.codigo.slice(2) === '001' };
+      })
+      // prioridad: la capital del departamento y luego los municipios con mas predios
+      .sort(function (a, b) { return (b.capital - a.capital) || (b.peso - a.peso); });
+  }
+  function pintarNombres() {
+    capaNombres.clearLayers();
+    var v = mapa.getBounds(), ocupados = [];
+    var W = 96, H = 34;                                     // tamano aproximado de la etiqueta en pixeles
+    centrosMun.forEach(function (it) {
+      if (!v.contains(it.c)) return;
+      var p = mapa.latLngToContainerPoint(it.c);
+      var caja = [p.x - W / 2, p.y - H / 2, p.x + W / 2, p.y + H / 2];
+      var choca = ocupados.some(function (o) { return caja[0] < o[2] && caja[2] > o[0] && caja[1] < o[3] && caja[3] > o[1]; });
+      if (choca) return;
+      ocupados.push(caja);
+      var m = it.m;
+      capaNombres.addLayer(etiqueta(it.c.lat, it.c.lng, 'mun', '<b>' + m.codigo + '</b>' + titulo(m.nombre),
+        titulo(m.nombre) + ' · ' + fmt(it.peso, 0) + ' predios', m.codigo));
+    });
+  }
+
+  // ---------------- busqueda
+  var espera = null;
+  $('codigo').addEventListener('input', function () { clearTimeout(espera); espera = setTimeout(buscar, 350); });
+  $('codigo').addEventListener('keydown', function (e) { if (e.key === 'Enter') { clearTimeout(espera); buscar(); } });
+
+  function buscar() {
+    if (!indice) return;
+    var c = limpio($('codigo').value);
+    history.replaceState(null, '', c ? '#' + c : location.pathname);
+    pintarSegmentos(c);
+    var dep = deps[c.slice(0, 2)] || null;
+    var mun = c.length >= 5 ? muns[c.slice(0, 5)] || null : null;
+    depActual = dep;
+    munActual = mun && mun.archivo ? mun : null;
+
+    $('selDep').value = dep ? dep.codigo : '';
+    llenarMuns(dep);
+    $('selMun').value = mun ? mun.codigo : '';
+    pintarRuta(dep, mun);
+
+    limpiarMarcas();
+    if (!munActual) {
+      quitarPredios();
+      pintarJerarquia(c, dep, mun, 0);
+      mostrarMunicipios(dep, null, false);
+      var proy = PROYECTADOS.filter(function (p) { return p.codigo === c.slice(0, 2); })[0];
+      if (proy) estado(proy.nombre + ': departamento proyectado, aún sin datos cargados.');
+      else if (c.length >= 2 && !dep) estado('El departamento ' + c.slice(0, 2) + ' no está en el visor.');
+      else if (c.length >= 5 && !mun) estado('No existe el municipio ' + c.slice(0, 5) + '.');
+      else if (mun) estado(titulo(mun.nombre) + ': sin predios en el IGAC (gestor catastral propio).');
+      else estado('');
+      actualizarVista();
+      return;
+    }
+    mostrarMunicipios(mun.dep, mun, true);
+    cargarMunicipio(mun).then(function (feats) {
+      if (limpio($('codigo').value) !== c) return;
+      dibujarMunicipio(mun, feats);
+      marcar(c, mun, feats);
+      actualizarVista();
+    }).catch(function (e) { estado('Error al cargar ' + mun.nombre + ': ' + e.message); });
+  }
+
+  function marcar(c, mun, feats) {
+    var anterior = c.length === 20;
+    var campo = anterior ? 'NUMERO_CATASTRAL_ANTERIOR' : 'NUMERO_CATASTRAL';
+    var coinciden = c.length <= 5 ? [] : feats.filter(function (f) {
+      var v = f.properties[campo] || '';
+      return anterior ? v === c : v.indexOf(c) === 0;
+    });
+    if (anterior && !coinciden.length) {
+      anterior = false;
+      coinciden = feats.filter(function (f) { return (f.properties.NUMERO_CATASTRAL || '').indexOf(c) === 0; });
+    }
+    var exacto = coinciden.length === 1 && (c.length === 30 || anterior) ? coinciden[0] : null;
+
+    if (c.length <= 5) {
+      mapa.fitBounds(bboxLL(mun.bbox));
+      estado(titulo(mun.nombre) + ': ' + fmt(feats.length, 0) + ' predios (' + fmt(mun.urbanos, 0) + ' urbanos, ' +
+             fmt(mun.rurales, 0) + ' rurales). Clic en un predio o siga escribiendo el código.');
+    } else if (!coinciden.length) {
+      mapa.fitBounds(bboxLL(mun.bbox));
+      estado('Ningún predio de ' + titulo(mun.nombre) + ' empieza por ese código.');
+    } else {
+      capaMarca = L.geoJSON({ type: 'FeatureCollection', features: coinciden }, {
+        renderer: lienzo, style: { color: css('--marca'), weight: 1.4, fillOpacity: 0.35 },
+        onEachFeature: function (f, capa) { capa.on('click', function (e) { e.originalEvent._enPredio = true; elegir(f, true); }); }
+      }).addTo(mapa);
+      if (!exacto) mapa.fitBounds(capaMarca.getBounds(), { maxZoom: 18, padding: [20, 20] });
+      estado(fmt(coinciden.length, 0) + ' predio(s) coinciden con el código.');
+    }
+    pintarJerarquia(c, mun.dep, mun, coinciden.length);
+    listar(c.length > 5 ? coinciden : []);
+    if (exacto) elegir(exacto, false);
+  }
+
+  // ---------------- predio identificado
+  function elegir(f, desdeMapa) {
+    seleccion = f;
+    if (capaSel) mapa.removeLayer(capaSel);
+    var poligono = L.geoJSON(f, { renderer: lienzo, style: { color: css('--sel'), weight: 3, fillOpacity: 0.25 } });
+    capaSel = L.featureGroup([poligono]).addTo(mapa);
+    mapa.fitBounds(poligono.getBounds(), { maxZoom: 20, padding: [90, 90] });
+    agregarCotas(f, capaSel);
+    var p = f.properties, cod = p.NUMERO_CATASTRAL || '';
+    var m = muns[cod.slice(0, 5)];
+    if (desdeMapa) {
+      $('codigo').value = cod;
+      history.replaceState(null, '', '#' + cod);
+      pintarSegmentos(cod);
+      if (m && m !== munActual) { munActual = m; $('selMun').value = m.codigo; pintarRuta(m.dep, m); mostrarMunicipios(m.dep, m, true); }
+      pintarJerarquia(cod, m && m.dep, m, 1);
+    }
+    $('fichaDatos').innerHTML = [
+      ['Número', '<code>' + cod + '</code>'],
+      ['Anterior', '<code>' + (p.NUMERO_CATASTRAL_ANTERIOR || '—') + '</code>'],
+      ['Ubicación', m ? titulo(m.nombre) + ', ' + titulo(m.dep.nombre) : '—'],
+      ['Zona', p.ZONA === 'URBANO' ? 'Urbano' : 'Rural'],
+      [p.ZONA === 'URBANO' ? 'Manzana' : 'Vereda', '<code>' + (p.MANZANA_VEREDA || '—') + '</code>'],
+      ['Área', fmt(p.AREA_M2) + ' m²' + (p.AREA_M2 >= 10000 ? ' (' + fmt(p.AREA_M2 / 10000, 4) + ' ha)' : '')],
+      ['Coordenadas', fmt(p.LATITUD, 6) + ', ' + fmt(p.LONGITUD, 6)]
+    ].map(function (r) { return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join('');
+    $('ficha').style.display = 'block';
+    if (fichaDirecta) { fichaDirecta = false; abrirFicha(true); }
+  }
+  // ---------------- area y cotas del predio seleccionado
+  var ZOOM_COTAS = 16, ANGULO_RECTO = 12, TRAMO_MINIMO = 0.3, NUM_COTAS = 4;
+  mapa.on('zoomend', function () { mapa.getContainer().classList.toggle('lejos', mapa.getZoom() < ZOOM_COTAS); });
+
+  function anilloPrincipal(g) {
+    if (g.type === 'Polygon') return g.coordinates[0];
+    return g.coordinates.map(function (p) { return p[0]; })
+      .sort(function (a, b) { return b.length - a.length; })[0];
+  }
+
+  // Une tramos casi alineados (cambio de direccion < ANGULO_RECTO) y quita tramos minimos
+  function ladosPrincipales(pts) {
+    var cambio = true;
+    while (cambio && pts.length > 3) {
+      cambio = false;
+      for (var i = 0; i < pts.length && pts.length > 3; i++) {
+        var a = pts[(i - 1 + pts.length) % pts.length], b = pts[i], c = pts[(i + 1) % pts.length];
+        var ang1 = Math.atan2(b.y - a.y, b.x - a.x), ang2 = Math.atan2(c.y - b.y, c.x - b.x);
+        var giro = Math.abs(((ang2 - ang1) * 180 / Math.PI + 540) % 360 - 180);
+        var corto = Math.hypot(b.x - a.x, b.y - a.y) < TRAMO_MINIMO;
+        if (giro < ANGULO_RECTO || corto) { pts.splice(i, 1); cambio = true; i--; }
+      }
+    }
+    return pts;
+  }
+
+  function dentro(p, pts) {   // punto en poligono (coordenadas proyectadas)
+    var r = false;
+    for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      if ((pts[i].py > p.y) !== (pts[j].py > p.y) &&
+          p.x < (pts[j].px - pts[i].px) * (p.y - pts[i].py) / (pts[j].py - pts[i].py) + pts[i].px) r = !r;
+    }
+    return r;
+  }
+
+  // Centroide del lote; si cae fuera (lotes en L o U), el centro del tramo interior mas ancho a esa altura
+  function puntoInterior(original) {
+    // se calcula respecto al primer vertice para no perder precision con coordenadas grandes
+    var bx = original[0].px, by = original[0].py;
+    var pts = original.map(function (q) { return { px: q.px - bx, py: q.py - by }; });
+    var r = puntoInteriorLocal(pts);
+    return [r[0] + bx, r[1] + by];
+  }
+  function puntoInteriorLocal(pts) {
+    var a = 0, cx = 0, cy = 0;
+    for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      var k = pts[j].px * pts[i].py - pts[i].px * pts[j].py;
+      a += k; cx += (pts[j].px + pts[i].px) * k; cy += (pts[j].py + pts[i].py) * k;
+    }
+    var c = a ? { x: cx / (3 * a), y: cy / (3 * a) } : { x: pts[0].px, y: pts[0].py };
+    if (dentro(c, pts)) return [c.x, c.y];
+    var cortes = [];
+    for (i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      if ((pts[i].py > c.y) !== (pts[j].py > c.y)) {
+        cortes.push(pts[i].px + (c.y - pts[i].py) * (pts[j].px - pts[i].px) / (pts[j].py - pts[i].py));
+      }
+    }
+    cortes.sort(function (u, v) { return u - v; });
+    var mejor = null;
+    for (i = 0; i + 1 < cortes.length; i += 2) {
+      if (!mejor || cortes[i + 1] - cortes[i] > mejor[1] - mejor[0]) mejor = [cortes[i], cortes[i + 1]];
+    }
+    return mejor ? [(mejor[0] + mejor[1]) / 2, c.y] : [c.x, c.y];
+  }
+
+  // Geometria del lote en metros: vertices, lados principales (linderos) con longitud y rumbo
+  var RUMBOS = ['Oriente', 'Nororiente', 'Norte', 'Noroccidente', 'Occidente', 'Suroccidente', 'Sur', 'Suroriente'];
+  function geometriaLote(f) {
+    var anillo = anilloPrincipal(f.geometry).slice(0, -1);   // sin el punto de cierre repetido
+    if (anillo.length < 3) return null;
+    // metros locales (misma aproximacion elipsoidal que el calculo del area)
+    var lat0 = anillo.reduce(function (s, c) { return s + c[1]; }, 0) / anillo.length * Math.PI / 180;
+    var my = 111132.92 - 559.82 * Math.cos(2 * lat0) + 1.175 * Math.cos(4 * lat0);
+    var mx = 111412.84 * Math.cos(lat0) - 93.5 * Math.cos(3 * lat0);
+    var pts = anillo.map(function (c) {
+      var pp = mapa.project([c[1], c[0]], 20);
+      return { lng: c[0], lat: c[1], x: c[0] * mx, y: c[1] * my, px: pp.x, py: pp.y };
+    });
+    var simp = ladosPrincipales(pts.slice());
+    var s = 0;
+    simp.forEach(function (a, i) { var b = simp[(i + 1) % simp.length]; s += a.x * b.y - b.x * a.y; });
+    var lados = simp.map(function (a, i) {
+      var b = simp[(i + 1) % simp.length], dx = b.x - a.x, dy = b.y - a.y, largo = Math.hypot(dx, dy) || 1;
+      var nx = (s > 0 ? dy : -dy) / largo, ny = (s > 0 ? -dx : dx) / largo;   // normal hacia afuera
+      var k = ((Math.round(Math.atan2(ny, nx) / (Math.PI / 4)) % 8) + 8) % 8;
+      return { a: a, b: b, largo: largo, nx: nx, ny: ny, rumbo: RUMBOS[k],
+               desde: String.fromCharCode(65 + i), hasta: String.fromCharCode(65 + (i + 1) % simp.length) };
+    });
+    var perimetro = 0;
+    pts.forEach(function (a, i) { var b = pts[(i + 1) % pts.length]; perimetro += Math.hypot(b.x - a.x, b.y - a.y); });
+    return { pts: pts, simp: simp, lados: lados, perimetro: perimetro };
+  }
+
+  function agregarCotas(f, grupo) {
+    var geo = geometriaLote(f);
+    if (!geo) return;
+    var anillo = geo.pts.map(function (q) { return [q.lng, q.lat]; });
+    var pts = geo.simp;
+    var lados = geo.lados.slice().sort(function (u, v) { return v.largo - u.largo; }).slice(0, NUM_COTAS);
+
+    lados.forEach(function (l) {
+      var dx = l.b.px - l.a.px, dy = l.b.py - l.a.py, n = Math.hypot(dx, dy) || 1;
+      var ang = Math.atan2(dy, dx) * 180 / Math.PI;
+      if (ang > 90) ang -= 180; else if (ang < -90) ang += 180;       // texto siempre legible
+      var nx = -dy / n, ny = dx / n;                                    // normal
+      var medio = { x: (l.a.px + l.b.px) / 2, y: (l.a.py + l.b.py) / 2 };
+      if (dentro({ x: medio.x + nx * 5, y: medio.y + ny * 5 }, pts)) { nx = -nx; ny = -ny; }  // hacia afuera
+      var ll = mapa.unproject([medio.x, medio.y], 20);
+      grupo.addLayer(L.marker(ll, { interactive: false, keyboard: false, zIndexOffset: 20000, icon: L.divIcon({
+        className: 'cota', iconSize: null,
+        html: '<div style="transform: translate(-50%,-50%) translate(' + (nx * 13).toFixed(1) + 'px,' + (ny * 13).toFixed(1) +
+              'px) rotate(' + ang.toFixed(1) + 'deg)">' + fmt(l.largo, 2) + ' m</div>' }) }));
+    });
+
+    var p = f.properties, centro = mapa.unproject(puntoInterior(anillo.map(function (c) {
+      var pp = mapa.project([c[1], c[0]], 20); return { px: pp.x, py: pp.y };
+    })), 20);
+    grupo.addLayer(L.marker(centro, { interactive: false, keyboard: false, zIndexOffset: 30000, icon: L.divIcon({
+      className: 'area-lote', iconSize: null,
+      html: '<div>' + fmt(p.AREA_M2, 1) + ' m²' + (p.AREA_M2 >= 10000 ? '<small>' + fmt(p.AREA_M2 / 10000, 3) + ' ha</small>' : '') +
+            '</div>' }) }));
+    mapa.getContainer().classList.toggle('lejos', mapa.getZoom() < ZOOM_COTAS);
+  }
+
+  // ---------------- ficha imprimible: area, numero y linderos, con plano del lote
+  function esc(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function formatoCodigo(c) {
+    return c ? [c.slice(0, 2), c.slice(2, 5), c.slice(5, 7), c.slice(7, 9), c.slice(9, 11), c.slice(11, 13),
+                c.slice(13, 17), c.slice(17, 21), c.slice(21, 22), c.slice(22, 24), c.slice(24, 26), c.slice(26, 30)].join(' ') : '—';
+  }
+
+  function planoSVG(geo, area) {
+    var W = 620, H = 430, M = 70;
+    var xs = geo.pts.map(function (q) { return q.x; }), ys = geo.pts.map(function (q) { return q.y; });
+    var x0 = Math.min.apply(0, xs), x1 = Math.max.apply(0, xs), y0 = Math.min.apply(0, ys), y1 = Math.max.apply(0, ys);
+    var k = Math.min((W - 2 * M) / ((x1 - x0) || 1), (H - 2 * M) / ((y1 - y0) || 1));
+    var ox = (W - (x1 - x0) * k) / 2, oy = (H - (y1 - y0) * k) / 2;
+    function P(q) { return { px: ox + (q.x - x0) * k, py: H - oy - (q.y - y0) * k }; }
+    var contorno = geo.pts.map(function (q) { var p = P(q); return p.px.toFixed(1) + ',' + p.py.toFixed(1); }).join(' ');
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H +
+      '" font-family="Arial, sans-serif"><rect width="100%" height="100%" fill="#fff"/>' +
+      '<polygon points="' + contorno + '" fill="#f6e3ea" stroke="#b0164a" stroke-width="2"/>';
+    geo.lados.forEach(function (l) {
+      var a = P(l.a), b = P(l.b), mxp = (a.px + b.px) / 2, myp = (a.py + b.py) / 2;
+      var ang = Math.atan2(b.py - a.py, b.px - a.px) * 180 / Math.PI;
+      if (ang > 90) ang -= 180; else if (ang < -90) ang += 180;
+      var tx = mxp + l.nx * 16, ty = myp - l.ny * 16;
+      svg += '<text x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" font-size="13" font-weight="700" fill="#7a1030" ' +
+             'text-anchor="middle" dominant-baseline="middle" transform="rotate(' + ang.toFixed(1) + ' ' + tx.toFixed(1) + ' ' + ty.toFixed(1) + ')">' +
+             fmt(l.largo, 2) + ' m</text>';
+    });
+    geo.lados.forEach(function (l) {
+      var a = P(l.a);
+      svg += '<circle cx="' + a.px.toFixed(1) + '" cy="' + a.py.toFixed(1) + '" r="4" fill="#b0164a"/>' +
+             '<text x="' + (a.px + 8).toFixed(1) + '" y="' + (a.py - 8).toFixed(1) + '" font-size="13" font-weight="700" fill="#1f2328">' + l.desde + '</text>';
+    });
+    var c = puntoInterior(geo.pts.map(P));
+    svg += '<text x="' + c[0].toFixed(1) + '" y="' + c[1].toFixed(1) + '" font-size="16" font-weight="800" fill="#1f2328" text-anchor="middle">' +
+           fmt(area, 2) + ' m²</text>';
+    // norte y escala
+    svg += '<g transform="translate(' + (W - 40) + ',50)"><path d="M0,-28 L9,6 L0,0 L-9,6 Z" fill="#1f2328"/>' +
+           '<text y="22" font-size="13" font-weight="700" text-anchor="middle">N</text></g>';
+    var paso = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000].filter(function (v) { return v * k <= 160; }).pop() || 1;
+    svg += '<g transform="translate(20,' + (H - 22) + ')"><rect width="' + (paso * k).toFixed(1) + '" height="6" fill="#1f2328"/>' +
+           '<text y="-6" font-size="11">0</text><text x="' + (paso * k).toFixed(1) + '" y="-6" font-size="11" text-anchor="middle">' + paso + ' m</text></g>';
+    return svg + '</svg>';
+  }
+
+  function abrirFicha(enEstaVentana) {
+    if (!seleccion) return;
+    var f = seleccion, p = f.properties, geo = geometriaLote(f);
+    if (!geo) return;
+    var m = muns[(p.NUMERO_CATASTRAL || '').slice(0, 5)];
+    var logo = new URL('img/logo_web.png', location.href).href;
+    var hoy = new Date().toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' });
+    var filas = [
+      ['Número predial', '<b class="mono">' + formatoCodigo(p.NUMERO_CATASTRAL) + '</b>'],
+      ['Número anterior', '<span class="mono">' + esc(p.NUMERO_CATASTRAL_ANTERIOR || '—') + '</span>'],
+      ['Departamento', m ? esc(titulo(m.dep.nombre)) : '—'],
+      ['Municipio', m ? esc(titulo(m.nombre)) + ' (' + m.codigo + ')' : '—'],
+      ['Zona', p.ZONA === 'URBANO' ? 'Urbana' : 'Rural'],
+      [p.ZONA === 'URBANO' ? 'Manzana' : 'Vereda', '<span class="mono">' + esc(p.MANZANA_VEREDA || '—') + '</span>'],
+      ['Área del terreno', '<b>' + fmt(p.AREA_M2, 2) + ' m²</b>' + (p.AREA_M2 >= 10000 ? ' (' + fmt(p.AREA_M2 / 10000, 4) + ' ha)' : '')],
+      ['Perímetro', fmt(geo.perimetro, 2) + ' m'],
+      ['Coordenadas (centro)', fmt(p.LATITUD, 6) + ', ' + fmt(p.LONGITUD, 6) + ' (MAGNA-SIRGAS)'],
+      ['Coordenadas planas', (function () { var c = aPlano.forward([p.LONGITUD, p.LATITUD]);
+        return 'E ' + fmt(c[0], 2) + ' · N ' + fmt(c[1], 2) + ' (Origen Nacional, EPSG:9377)'; })()]
+    ].map(function (r) { return '<tr><th>' + r[0] + '</th><td>' + r[1] + '</td></tr>'; }).join('');
+    var linderos = geo.lados.map(function (l, i) {
+      return '<tr><td>' + (i + 1) + '</td><td>' + l.rumbo + '</td><td>' + l.desde + ' – ' + l.hasta + '</td><td class="num">' + fmt(l.largo, 2) + ' m</td></tr>';
+    }).join('');
+    var nombre = 'predio_' + p.NUMERO_CATASTRAL;
+    var html = '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Ficha ' + nombre + '</title><style>' +
+      'body{font:13px/1.45 Arial,sans-serif;color:#1f2328;margin:0;background:#eee}' +
+      '.hoja{background:#fff;width:190mm;min-height:270mm;margin:12px auto;padding:12mm;box-sizing:border-box}' +
+      'header{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #0f4d2e;padding-bottom:8px;margin-bottom:12px}' +
+      'header img{height:64px}header h1{font-size:18px;margin:0;color:#0f4d2e;text-align:right}header small{display:block;font-weight:400;color:#5d6470;font-size:11px}' +
+      'h2{font-size:13px;color:#0f4d2e;text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px}' +
+      'table{border-collapse:collapse;width:100%}th,td{border:1px solid #d6d3cc;padding:5px 7px;text-align:left;vertical-align:top}' +
+      'th{background:#f3f1ec;width:34%;font-weight:600}.mono{font-family:Consolas,monospace}.num{text-align:right;font-variant-numeric:tabular-nums}' +
+      '.linderos th{width:auto}.plano{text-align:center;border:1px solid #d6d3cc;margin-top:4px}.plano svg{max-width:100%;height:auto}' +
+      '.nota{font-size:10.5px;color:#5d6470;margin-top:12px;border-top:1px solid #d6d3cc;padding-top:6px}' +
+      '.barra{text-align:center;padding:10px;position:sticky;top:0;background:#1f2a36}' +
+      '.barra button{font:600 13px Arial;margin:0 4px;padding:8px 14px;border-radius:6px;border:0;cursor:pointer;background:#b4531f;color:#fff}' +
+      '.barra button.sec{background:#fff;color:#1f2328}' +
+      '@media print{body{background:#fff}.barra{display:none}.hoja{margin:0;width:auto;min-height:0;padding:0}@page{size:letter;margin:12mm}}' +
+      '</style></head><body>' +
+      '<div class="barra"><button onclick="print()">🖨 Imprimir / Guardar PDF</button>' +
+      '<button class="sec" id="png">⬇ Descargar plano (imagen)</button><button class="sec" onclick="close()">Cerrar</button></div>' +
+      '<div class="hoja"><header><img src="' + logo + '" alt="Catastro Boyacá"><h1>Ficha del predio<small>Generada el ' + hoy + '</small></h1></header>' +
+      '<h2>Identificación</h2><table>' + filas + '</table>' +
+      '<h2>Plano del lote</h2><div class="plano" id="plano">' + planoSVG(geo, p.AREA_M2) + '</div>' +
+      '<h2>Linderos</h2><table class="linderos"><tr><th>#</th><th>Rumbo</th><th>Tramo</th><th class="num">Longitud</th></tr>' + linderos + '</table>' +
+      '<p class="nota">Fuente: IGAC, Datos Abiertos Catastrales (capa ' + (p.ZONA === 'URBANO' ? 'U_TERRENO' : 'R_TERRENO') + '). ' +
+      'Área, perímetro y longitudes calculados a partir de la geometría publicada (MAGNA-SIRGAS, EPSG:4686); linderos simplificados ' +
+      'uniendo tramos casi rectos. Documento informativo: no reemplaza el certificado catastral ni un levantamiento topográfico.</p></div>' +
+      '<script>document.getElementById("png").onclick=function(){var s=document.querySelector("#plano svg"),' +
+      'x=new XMLSerializer().serializeToString(s),i=new Image(),c=document.createElement("canvas");c.width=s.width.baseVal.value*2;' +
+      'c.height=s.height.baseVal.value*2;i.onload=function(){var g=c.getContext("2d");g.scale(2,2);g.drawImage(i,0,0);' +
+      'c.toBlob(function(b){var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="' + nombre + '_plano.png";a.click();});};' +
+      'i.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(x);};<\/script></body></html>';
+    var w = enEstaVentana === true ? window : window.open('', '_blank');
+    if (!w) { estado('El navegador bloqueó la ventana de la ficha: permita las ventanas emergentes.'); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+  }
+  $('btnFicha').addEventListener('click', function () { abrirFicha(false); });
+  // Enlace directo a la ficha: index.html?ficha#<numero predial de 30 digitos>
+  var fichaDirecta = /[?&]ficha\b/.test(location.search);
+
+  // ---------------- panel derecho: listado de municipios del departamento
+  var capaResalte = L.layerGroup().addTo(mapa);
+  function sinTildes(t) { return (t || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase(); }
+  function llenarListaMun() {
+    var dep = deps['15'] || indice.departamentos[0];
+    var lista = dep.municipios.slice().sort(function (a, b) { return a.nombre.localeCompare(b.nombre, 'es'); });
+    var ul = $('itemsMun');
+    ul.innerHTML = '';
+    lista.forEach(function (m) {
+      var li = document.createElement('li');
+      li.dataset.codigo = m.codigo;
+      li.dataset.texto = sinTildes(m.nombre) + ' ' + m.codigo;
+      li.className = m.bbox ? '' : 'sin';
+      li.innerHTML = '<code>' + m.codigo + '</code><span>' + titulo(m.nombre) + '</span><small>' +
+                     (m.bbox ? fmt(m.urbanos + m.rurales, 0) : '—') + '</small>';
+      li.title = titulo(m.nombre) + ': ' + fmt(m.urbanos, 0) + ' predios urbanos, ' + fmt(m.rurales, 0) + ' rurales';
+      if (m.bbox) {
+        li.addEventListener('mouseenter', function () { resaltar(m); });
+        li.addEventListener('mouseleave', function () { capaResalte.clearLayers(); });
+      }
+      ul.appendChild(li);
+    });
+    $('cuentaMun').textContent = lista.length;
+    marcarEnLista();
+  }
+  function resaltar(m) {
+    capaResalte.clearLayers();
+    var estilo = { color: '#d11f5a', weight: 3, fillColor: '#d11f5a', fillOpacity: 0.15, interactive: false };
+    (limites[m.codigo] ? L.geoJSON(limites[m.codigo], { style: estilo }) : L.rectangle(bboxLL(m.bbox), estilo)).addTo(capaResalte);
+  }
+  // Selector tipo buscador: el listado se despliega al enfocar o escribir en el campo
+  function marcarEnLista() {
+    var actual = munActual ? munActual.codigo : null;
+    Array.prototype.forEach.call($('itemsMun').children, function (li) { li.classList.toggle('actual', li.dataset.codigo === actual); });
+    if (document.activeElement !== $('filtroMun')) $('filtroMun').value = munActual ? titulo(munActual.nombre) + ' · ' + munActual.codigo : '';
+    $('quitarMun').hidden = !munActual;
+  }
+  // Quitar el municipio: volver a la vista de todo el departamento
+  function quitarMunicipio() {
+    var dep = munActual ? munActual.dep.codigo : (limpio($('codigo').value).slice(0, 2) || '15');
+    capaResalte.clearLayers();
+    ir(dep);
+  }
+  $('quitarMun').addEventListener('mousedown', function (e) { e.preventDefault(); });
+  $('quitarMun').addEventListener('click', quitarMunicipio);
+  function itemsVisibles() {
+    return Array.prototype.filter.call($('itemsMun').children, function (li) { return !li.hidden && !li.classList.contains('sin'); });
+  }
+  function filtrarLista(q) {
+    q = sinTildes(q.trim());
+    var n = 0;
+    Array.prototype.forEach.call($('itemsMun').children, function (li) {
+      var ver = !q || li.dataset.texto.indexOf(q) !== -1;
+      li.hidden = !ver; li.classList.remove('activo');
+      if (ver) n++;
+    });
+    $('cuentaMun').textContent = q ? n + ' de ' + $('itemsMun').children.length : $('itemsMun').children.length;
+    var v = itemsVisibles();
+    if (v.length) v[0].classList.add('activo');
+  }
+  function abrirLista() {
+    $('itemsMun').hidden = false;
+    $('filtroMun').setAttribute('aria-expanded', 'true');
+    var act = $('itemsMun').querySelector('li.actual:not([hidden])') || $('itemsMun').querySelector('li.activo');
+    if (act) act.scrollIntoView({ block: 'nearest' });
+  }
+  function cerrarLista() {
+    $('itemsMun').hidden = true;
+    $('filtroMun').setAttribute('aria-expanded', 'false');
+    capaResalte.clearLayers();
+  }
+  function elegirMun(codigo) { cerrarLista(); $('filtroMun').blur(); ir(codigo); }
+  $('filtroMun').addEventListener('focus', function () { this.value = ''; filtrarLista(''); abrirLista(); });
+  $('filtroMun').addEventListener('blur', function () { setTimeout(function () { cerrarLista(); marcarEnLista(); }, 150); });
+  $('filtroMun').addEventListener('input', function () { filtrarLista(this.value); abrirLista(); });
+  $('filtroMun').addEventListener('keydown', function (e) {
+    var v = itemsVisibles(), i = v.findIndex(function (li) { return li.classList.contains('activo'); });
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if ($('itemsMun').hidden) abrirLista();
+      if (!v.length) return;
+      if (i >= 0) v[i].classList.remove('activo');
+      i = e.key === 'ArrowDown' ? Math.min(v.length - 1, i + 1) : Math.max(0, i - 1);
+      v[i].classList.add('activo');
+      v[i].scrollIntoView({ block: 'nearest' });
+      var m = muns[v[i].dataset.codigo]; if (m) resaltar(m);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      var elegido = v[i >= 0 ? i : 0];
+      if (elegido) elegirMun(elegido.dataset.codigo);
+    } else if (e.key === 'Escape') {
+      e.stopPropagation(); cerrarLista(); this.blur();
+    }
+  });
+  // mousedown (antes del blur) para que el clic en la lista no se pierda al cerrarse
+  $('itemsMun').addEventListener('mousedown', function (e) {
+    var li = e.target.closest('li');
+    e.preventDefault();
+    if (li && !li.classList.contains('sin')) elegirMun(li.dataset.codigo);
+  });
+
+  // ---------------- zonas urbanas (linea gruesa), areas por municipio y jerarquia urbana
+  var estad = null;
+  mapa.createPane('urbano').style.zIndex = 445;                     // encima de predios, debajo del contorno
+  mapa.getPane('urbano').style.pointerEvents = 'none';
+  var lienzoUrbano = L.canvas({ pane: 'urbano', padding: 0.3 });
+  var capaUrbana = L.layerGroup().addTo(mapa);
+  controlCapas.addOverlay(capaUrbana, 'Zonas urbanas');
+  fetch(DATOS + 'zonas_urbanas.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (fc) {
+    if (!fc) return;
+    var cab = { type: 'FeatureCollection', features: fc.features.filter(function (f) { return f.properties.TIPO === 'cabecera'; }) };
+    var cen = { type: 'FeatureCollection', features: fc.features.filter(function (f) { return f.properties.TIPO !== 'cabecera'; }) };
+    [[cab, 7, 3.5, null], [cen, 5, 2.5, '6 5']].forEach(function (c) {
+      L.geoJSON(c[0], { renderer: lienzoUrbano, interactive: false,
+                        style: { color: '#ffffff', weight: c[1], opacity: 0.9, fill: false } }).addTo(capaUrbana);
+      L.geoJSON(c[0], { renderer: lienzoUrbano, interactive: false,
+                        style: { color: '#1e3a8a', weight: c[2], opacity: 1, dashArray: c[3], fillColor: '#1e3a8a', fillOpacity: 0.08 } }).addTo(capaUrbana);
+    });
+  }).catch(function () {});
+  fetch(DATOS + 'estadisticas.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+    estad = j;
+    pintarResumen(munActual);
+    if (j && /[?&]jerarquia\b/.test(location.search)) $('btnJerarquia').click();   // enlace directo: ?jerarquia
+  }).catch(function () {});
+
+  function pintarResumen(m) {
+    pintarGrafico(m);
+    var s = estad && m && estad.municipios[m.codigo];
+    if (!s) { $('resumenMun').style.display = 'none'; return; }
+    $('resumenTitulo').textContent = titulo(m.nombre) + ': áreas';
+    $('resumenDatos').innerHTML = [
+      ['Área total', fmt(s.area_km2, 2) + ' km²'],
+      ['Área urbana', fmt(s.urbana_ha, 1) + ' ha'],
+      ['· Cabecera', fmt(s.cabecera_ha, 1) + ' ha'],
+      ['· Centros poblados', fmt(s.centros_poblados_ha, 1) + ' ha'],
+      ['% urbano', fmt(s.pct_urbana, 2) + ' %'],
+      ['% rural', fmt(s.pct_rural, 2) + ' %'],
+      ['% del área de Boyacá', fmt(s.pct_departamento, 2) + ' %'],
+      ['Jerarquía urbana', '#' + s.jerarquia + ' de ' + Object.keys(estad.municipios).length]
+    ].map(function (r) { return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join('');
+    $('barraUso').firstElementChild.style.width = Math.max(0.5, s.pct_urbana) + '%';
+    $('lyUrb').textContent = 'Urbano ' + fmt(s.pct_urbana, 2) + ' %';
+    $('lyRur').textContent = 'Rural ' + fmt(s.pct_rural, 2) + ' %';
+    $('resumenCat').textContent = s.categoria;
+    $('resumenMun').style.display = 'block';
+  }
+
+  // Grafico circular: los 7 municipios de mayor area + "otros"; el municipio actual se destaca
+  var DONA_TOP = 7;
+  function pintarGrafico(mActual) {
+    if (!estad) return;
+    var total = estad.area_departamento_km2;
+    var todos = Object.keys(estad.municipios).map(function (c) { return { c: c, a: estad.municipios[c].area_km2 || 0 }; })
+      .sort(function (x, y) { return y.a - x.a; });
+    // Todos los municipios, de mayor a menor area; color = escala secuencial de un solo tono (oscuro = mas grande)
+    var porciones = todos.map(function (t, i) {
+      return { c: t.c, nombre: titulo((muns[t.c] || {}).nombre || t.c), a: t.a, puesto: i + 1,
+               color: colorSecuencial(i / Math.max(1, todos.length - 1)) };
+    });
+    // El seleccionado va en rojo y el dibujo arranca en el (queda arriba, a las 12 en punto)
+    var inicio = 0;
+    if (mActual) {
+      porciones.forEach(function (p, i) { if (p.c === mActual.codigo) { p.color = 'var(--s8)'; inicio = i; } });
+    }
+    var dibujo = porciones.slice(inicio).concat(porciones.slice(0, inicio));
+    var cx = 110, cy = 110, R = 100, r = 62, html = '';
+    var ang = -Math.PI / 2 - (mActual && inicio >= 0 ? Math.PI * (porciones[inicio].a / total) : 0);
+    function punto(rad, a) { return (cx + rad * Math.cos(a)).toFixed(2) + ' ' + (cy + rad * Math.sin(a)).toFixed(2); }
+    dibujo.forEach(function (p) {
+      var i = porciones.indexOf(p);
+      var da = 2 * Math.PI * p.a / total, a1 = ang + da, grande = da > Math.PI ? 1 : 0;
+      var d = 'M' + punto(R, ang) + ' A' + R + ' ' + R + ' 0 ' + grande + ' 1 ' + punto(R, a1) +
+              ' L' + punto(r, a1) + ' A' + r + ' ' + r + ' 0 ' + grande + ' 0 ' + punto(r, ang) + 'Z';
+      var medio = ang + da / 2, esActual = mActual && p.c === mActual.codigo;
+      var mover = esActual ? 'transform="translate(' + (6 * Math.cos(medio)).toFixed(1) + ' ' + (6 * Math.sin(medio)).toFixed(1) + ')"' : '';
+      html += '<path d="' + d + '" fill="' + p.color + '" data-i="' + i + '" class="' + (esActual ? 'actual' : '') + '" ' + mover + '></path>';
+      p.medio = medio;
+      ang = a1;
+    });
+    $('donaSvg').innerHTML = html;
+    var sa = mActual && estad.municipios[mActual.codigo];
+    $('donaCentro').innerHTML = sa
+      ? '<b>' + fmt(sa.pct_departamento, 2) + ' %</b><span>' + esc(titulo(mActual.nombre)) + '<br>' + fmt(sa.area_km2, 0) + ' km²</span>'
+      : '<b>' + fmt(total, 0) + '</b><span>km² de Boyacá<br>' + Object.keys(estad.municipios).length + ' municipios</span>';
+    $('donaLeyenda').innerHTML = porciones.map(function (p, i) {
+      var esActual = mActual && p.c === mActual.codigo;
+      return '<li data-i="' + i + '" class="' + (esActual ? 'actual' : '') + '"><i style="background:' + p.color + '"></i><span>' +
+             p.puesto + '. ' + esc(p.nombre) + '</span><small>' + fmt(100 * p.a / total, 2) + ' % · ' + fmt(p.a, 0) + ' km²</small></li>';
+    }).join('');
+    pintarGrafico.porciones = porciones;
+    var act = $('donaLeyenda').querySelector('li.actual');
+    if (act) $('donaLeyenda').scrollTop = act.offsetTop - $('donaLeyenda').clientHeight / 2;
+  }
+  // Escala secuencial azul (paleta validada, pasos 700 -> 150): t = 0 (mayor area) ... 1 (menor)
+  var RAMPA = ['#0d366b', '#104281', '#184f95', '#1c5cab', '#256abf', '#2a78d6', '#3987e5', '#5598e7', '#6da7ec', '#86b6ef', '#9ec5f4', '#b7d3f6'];
+  function colorSecuencial(t) {
+    var x = t * (RAMPA.length - 1), i = Math.min(RAMPA.length - 2, Math.floor(x)), f = x - i;
+    var a = RAMPA[i], b = RAMPA[i + 1], c = function (h, k) { return parseInt(h.substr(1 + 2 * k, 2), 16); };
+    return 'rgb(' + [0, 1, 2].map(function (k) { return Math.round(c(a, k) + (c(b, k) - c(a, k)) * f); }).join(',') + ')';
+  }
+  function tipDona(i, ev) {
+    var p = pintarGrafico.porciones[i], tip = $('donaTip');
+    if (!p) { tip.hidden = true; return; }
+    var caja = $('donaSvg').getBoundingClientRect(), k = caja.width / 220;
+    tip.innerHTML = esc(p.nombre) + '<br><b>' + fmt(p.a, 0) + ' km²</b> · ' + fmt(100 * p.a / estad.area_departamento_km2, 2) + ' %';
+    tip.style.left = (110 + 82 * Math.cos(p.medio)) * k + 'px';
+    tip.style.top = (110 + 82 * Math.sin(p.medio)) * k + 'px';
+    tip.hidden = false;
+  }
+  function irPorcion(i) { var p = pintarGrafico.porciones[i]; if (p && p.c) ir(p.c); }
+  $('donaSvg').addEventListener('mousemove', function (e) {
+    var i = e.target.getAttribute && e.target.getAttribute('data-i');
+    if (i == null) { $('donaTip').hidden = true; return; }
+    tipDona(+i, e);
+  });
+  $('donaSvg').addEventListener('mouseleave', function () { $('donaTip').hidden = true; });
+  $('donaSvg').addEventListener('click', function (e) { var i = e.target.getAttribute('data-i'); if (i != null) irPorcion(+i); });
+  $('donaLeyenda').addEventListener('mouseover', function (e) { var li = e.target.closest('li'); if (li) tipDona(+li.getAttribute('data-i')); });
+  $('donaLeyenda').addEventListener('mouseleave', function () { $('donaTip').hidden = true; });
+  $('donaLeyenda').addEventListener('click', function (e) { var li = e.target.closest('li'); if (li) irPorcion(+li.getAttribute('data-i')); });
+
+  // Tabla de jerarquia urbana (ordenable, clic = ir al municipio, descarga CSV)
+  var COLS = [
+    { k: 'jerarquia', t: '#', num: true, f: function (v) { return v; } },
+    { k: 'nombre', t: 'Municipio' },
+    { k: 'codigo', t: 'Código' },
+    { k: 'urbana_ha', t: 'Área urbana (ha)', num: true, f: function (v) { return fmt(v, 1); } },
+    { k: 'pct_urbana', t: '% urbano', num: true, f: function (v) { return fmt(v, 2); } },
+    { k: 'pct_rural', t: '% rural', num: true, f: function (v) { return fmt(v, 2); } },
+    { k: 'area_km2', t: 'Área total (km²)', num: true, f: function (v) { return fmt(v, 1); } },
+    { k: 'pct_departamento', t: '% de Boyacá', num: true, f: function (v) { return fmt(v, 2); } },
+    { k: 'urbanos', t: 'Predios urbanos', num: true, f: function (v) { return fmt(v, 0); } },
+    { k: 'categoria', t: 'Categoría' }
+  ];
+  var ordenJer = { k: 'jerarquia', asc: true };
+  function filasJer() {
+    return Object.keys(estad.municipios).map(function (c) {
+      var s = estad.municipios[c], m = muns[c] || {};
+      return Object.assign({ codigo: c, nombre: titulo(m.nombre || c), urbanos: m.urbanos || 0 }, s);
+    });
+  }
+  function pintarJerarquiaUrbana() {
+    var filas = filasJer(), maxHa = Math.max.apply(0, filas.map(function (f) { return f.urbana_ha; }));
+    filas.sort(function (a, b) {
+      var x = a[ordenJer.k], y = b[ordenJer.k];
+      var r = typeof x === 'string' ? x.localeCompare(y, 'es') : (x || 0) - (y || 0);
+      return ordenJer.asc ? r : -r;
+    });
+    $('jerCabeza').innerHTML = COLS.map(function (c) {
+      return '<th data-k="' + c.k + '" class="' + (c.num ? 'num' : '') + '">' + c.t +
+             (ordenJer.k === c.k ? (ordenJer.asc ? ' ▲' : ' ▼') : '') + '</th>';
+    }).join('');
+    $('jerCuerpo').innerHTML = filas.map(function (f) {
+      return '<tr data-c="' + f.codigo + '">' + COLS.map(function (c) {
+        var v = c.f ? c.f(f[c.k]) : esc(f[c.k]);
+        if (c.k === 'urbana_ha') v = '<span class="mini-barra" style="width:' + (60 * f.urbana_ha / maxHa).toFixed(1) + 'px"></span>' + v;
+        return '<td class="' + (c.num ? 'num' : '') + '">' + v + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+    var cuenta = {};
+    filas.forEach(function (f) { cuenta[f.categoria] = (cuenta[f.categoria] || 0) + 1; });
+    $('jerCategorias').innerHTML = '<b>Área de Boyacá: ' + fmt(estad.area_departamento_km2, 0) + ' km²</b>' +
+      estad.categorias.map(function (c) {
+        return '<span>' + c[1] + ' (≥ ' + fmt(c[0], 0) + ' ha): <b>' + (cuenta[c[1]] || 0) + '</b></span>';
+      }).join('');
+  }
+  $('jerCabeza').addEventListener('click', function (e) {
+    var th = e.target.closest('th');
+    if (!th) return;
+    var k = th.getAttribute('data-k');
+    ordenJer = { k: k, asc: ordenJer.k === k ? !ordenJer.asc : (k === 'nombre' || k === 'codigo' || k === 'jerarquia') };
+    pintarJerarquiaUrbana();
+  });
+  $('jerCuerpo').addEventListener('click', function (e) {
+    var tr = e.target.closest('tr');
+    if (tr) { $('ventanaJer').hidden = true; ir(tr.getAttribute('data-c')); }
+  });
+  $('btnJerarquia').addEventListener('click', function () {
+    if (!estad) { estado('Las estadísticas de áreas aún no están disponibles.'); return; }
+    pintarJerarquiaUrbana();
+    $('ventanaJer').hidden = false;
+  });
+  $('jerCerrar').addEventListener('click', function () { $('ventanaJer').hidden = true; });
+  $('ventanaJer').addEventListener('click', function (e) { if (e.target === this) this.hidden = true; });
+  $('jerCsv').addEventListener('click', function () {
+    var filas = filasJer().sort(function (a, b) { return a.jerarquia - b.jerarquia; });
+    var cab = ['jerarquia', 'codigo', 'municipio', 'area_urbana_ha', 'cabecera_ha', 'centros_poblados_ha', 'pct_urbano',
+               'pct_rural', 'area_total_km2', 'pct_boyaca', 'predios_urbanos', 'categoria'];
+    var lineas = [cab.join(';')].concat(filas.map(function (f) {
+      return [f.jerarquia, f.codigo, f.nombre, f.urbana_ha, f.cabecera_ha, f.centros_poblados_ha, f.pct_urbana, f.pct_rural,
+              f.area_km2, f.pct_departamento, f.urbanos, f.categoria].map(function (v) { return String(v).replace('.', ','); }).join(';');
+    }));
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + lineas.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'jerarquia_urbana_boyaca.csv';
+    a.click();
+  });
+
+  // Clic en el logo: volver a la vista de todo el departamento
+  $('logo').addEventListener('click', function () { ir('15'); });
+
+  // Quitar la seleccion: vuelve al nivel de municipio sin mover el mapa
+  function deseleccionar() {
+    if (!seleccion && !capaMarca) return;
+    if (capaSel) { mapa.removeLayer(capaSel); capaSel = null; }
+    if (capaMarca) { mapa.removeLayer(capaMarca); capaMarca = null; }
+    seleccion = null;
+    $('ficha').style.display = 'none';
+    listar([]);
+    var c = limpio($('codigo').value).slice(0, 5);
+    var m = muns[c];
+    $('codigo').value = c;
+    history.replaceState(null, '', c ? '#' + c : location.pathname);
+    pintarSegmentos(c);
+    pintarJerarquia(c, m && m.dep, m, 0);
+    estado('');
+  }
+  $('btnQuitar').addEventListener('click', deseleccionar);
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    if (!$('ventanaJer').hidden) $('ventanaJer').hidden = true;
+    else if (seleccion || capaMarca) deseleccionar();        // 1.º quita el predio
+    else if (munActual) quitarMunicipio();                   // 2.º quita el municipio
+  });
+  mapa.on('click', function (e) { if (!e.originalEvent._enPredio) deseleccionar(); });
+
+  $('btnCopiar').addEventListener('click', function () {
+    if (seleccion) navigator.clipboard.writeText(seleccion.properties.NUMERO_CATASTRAL).then(function () { estado('Número copiado.'); });
+  });
+  $('btnGmaps').addEventListener('click', function () {
+    if (seleccion) window.open('https://www.google.com/maps?q=' + seleccion.properties.LATITUD + ',' + seleccion.properties.LONGITUD, '_blank');
+  });
+  $('btnGeo').addEventListener('click', function () {
+    if (!seleccion) return;
+    var blob = new Blob([JSON.stringify({ type: 'FeatureCollection', features: [seleccion] })], { type: 'application/geo+json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'predio_' + seleccion.properties.NUMERO_CATASTRAL + '.geojson';
+    a.click();
+  });
+
+  // ---------------- paneles
+  function pintarRuta(dep, mun) {
+    setTimeout(marcarEnLista, 0);
+    pintarResumen(mun && mun.archivo ? mun : null);
+    capaResalte.clearLayers();
+    var partes = [{ t: 'Colombia', c: '' }];
+    if (dep) partes.push({ t: titulo(dep.nombre) + (mun ? '' : ' · ' + dep.municipios.filter(function (m) { return m.bbox; }).length + ' municipios'), c: dep.codigo });
+    if (mun) partes.push({ t: titulo(mun.nombre), c: mun.codigo });
+    $('ruta').innerHTML = partes.map(function (p, i) {
+      return (i ? '<span class="sep">›</span>' : '') +
+             '<a data-c="' + p.c + '" class="' + (i === partes.length - 1 ? 'actual' : '') + '">' + p.t + '</a>';
+    }).join('');
+  }
+  $('ruta').addEventListener('click', function (e) {
+    var a = e.target.closest('a');
+    if (a && !a.classList.contains('actual')) ir(a.getAttribute('data-c'));
+  });
+
+  function pintarSegmentos(c) {
+    var html = '', desde = 0;
+    NIVELES.forEach(function (n) {
+      var parte = c.slice(desde, n.hasta), largo = n.hasta - desde;
+      html += '<span title="' + n.nombre + '" class="' + (parte.length === largo ? 'lleno' : '') + '">' +
+              (parte + '·'.repeat(largo - parte.length)) + '</span>';
+      desde = n.hasta;
+    });
+    $('segmentos').innerHTML = html;
+  }
+
+  function pintarJerarquia(c, dep, mun, cuantos) {
+    var filas = [{ nivel: 'País', valor: 'Colombia', clase: 'ok' }];
+    var desde = 0, conDatos = mun && mun.archivo;
+    NIVELES.forEach(function (n) {
+      if (c.length < n.hasta) return;
+      var parte = c.slice(desde, n.hasta), valor, clase = 'ok';
+      if (n.hasta === 2) { valor = dep ? titulo(dep.nombre) : 'No disponible'; clase = dep ? 'ok' : 'no'; }
+      else if (n.hasta === 5) { valor = mun ? titulo(mun.nombre) : 'No existe'; clase = mun ? (conDatos ? 'ok' : 'pend') : 'no'; }
+      else if (n.hasta === 7) valor = parte === '00' ? 'Rural' : parte === '01' ? 'Urbana' : 'Corregimiento ' + parte;
+      else valor = n.nombre + ' ' + parte;
+      if (n.hasta > 5 && conDatos && !cuantos) clase = 'no';
+      filas.push({ nivel: n.nombre, valor: valor, codigo: parte, clase: clase });
+      desde = n.hasta;
+    });
+    if (c.length > 5 && conDatos) {
+      filas.push({ nivel: 'Resultado', valor: cuantos ? fmt(cuantos, 0) + ' predio(s)' : 'Sin coincidencias', clase: cuantos ? 'ok' : 'no' });
+    }
+    $('jerarquia').innerHTML = filas.map(function (f) {
+      return '<li class="' + f.clase + '"><span class="punto"></span><span class="nivel">' + f.nivel + '</span>' +
+             '<span class="valor">' + f.valor + (f.codigo ? '<code>' + f.codigo + '</code>' : '') + '</span></li>';
+    }).join('');
+  }
+
+  function listar(feats) {
+    var caja = $('resultados');
+    if (!feats.length) { caja.style.display = 'none'; $('tituloRes').style.display = 'none'; return; }
+    $('tituloRes').style.display = '';
+    $('tituloRes').textContent = 'Coinciden' + (feats.length > MAX_LISTA ? ' (primeros ' + MAX_LISTA + ' de ' + fmt(feats.length, 0) + ')' : ' (' + feats.length + ')');
+    caja.innerHTML = '';
+    feats.slice(0, MAX_LISTA).forEach(function (f) {
+      var d = document.createElement('div');
+      d.innerHTML = f.properties.NUMERO_CATASTRAL + '<span>' + fmt(f.properties.AREA_M2, 0) + ' m²</span>';
+      d.addEventListener('click', function () { elegir(f, true); });
+      caja.appendChild(d);
+    });
+    caja.style.display = 'block';
+  }
+
+  // Municipios del departamento: limite oficial (si esta disponible) o recuadro, con clic para entrar
+  function mostrarMunicipios(dep, mun, soloContorno) {
+    capaMunicipios.clearLayers();
+    var lista = dep ? dep.municipios : Object.keys(muns).map(function (k) { return muns[k]; });
+    lista.filter(function (m) { return m.bbox; }).forEach(function (m) {
+      var actual = mun && m.codigo === mun.codigo;
+      var estilo = { renderer: lienzo, color: css('--acento'), weight: actual ? 2.5 : 1,
+                     dashArray: actual || limites[m.codigo] ? null : '4 4',
+                     fillOpacity: soloContorno ? 0 : 0.1, interactive: !actual };
+      var capa = limites[m.codigo] ? L.geoJSON(limites[m.codigo], { style: estilo, interactive: !actual, renderer: lienzo })
+                                   : L.rectangle(bboxLL(m.bbox), estilo);
+      capa.bindTooltip(titulo(m.nombre) + ' · ' + fmt(m.urbanos + m.rurales, 0) + ' predios',
+                       { sticky: true, className: soloContorno ? '' : '' })
+          .on('click', function () { ir(m.codigo); })
+          .addTo(capaMunicipios);
+    });
+    if (soloContorno) return;
+    if (dep && dep.bbox) mapa.fitBounds(bboxLL(dep.bbox));
+    else {
+      var todo = unirBbox(lista.map(function (m) { return m.bbox; }));
+      mapa.fitBounds(todo ? bboxLL(todo) : COLOMBIA, { maxZoom: 8 });
+    }
+  }
+
+  function limpiarMarcas() {
+    if (capaMarca) { mapa.removeLayer(capaMarca); capaMarca = null; }
+    if (capaSel) { mapa.removeLayer(capaSel); capaSel = null; }
+    seleccion = null;
+    $('ficha').style.display = 'none';
+    listar([]);
+  }
+  function quitarPredios() {
+    Object.keys(capasPredios).forEach(function (k) { mapa.removeLayer(capasPredios[k]); });
+    capasPredios = {};
+  }
+})();
+</script>
+</body>
+</html>
