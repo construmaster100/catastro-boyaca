@@ -10,3 +10,6 @@ __pycache__/
 
 # Configuracion local de Claude Code
 .claude/
+
+# Respaldo del registro antiguo del visor (su historial ya esta incluido en este repositorio)
+.respaldo_git_visor/
