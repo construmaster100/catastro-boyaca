@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Buscador de Predios</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root {
+    --bg: #f5f4f0; --panel: #ffffff; --texto: #1f2328; --suave: #5d6470; --borde: #dcdad3;
+    --acento: #b4531f; --acento-suave: #f6e3d6; --ok: #2f7d4f; --no: #a33a3a;
+    --predio: #3a6ea5; --marca: #e0782f; --sel: #d11f5a; --nav: #1f2a36; --nav-texto: #f3f1ec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16181c; --panel: #1f2227; --texto: #e7e7e4; --suave: #9aa0a8; --borde: #34383f;
+      --acento: #f08a4b; --acento-suave: #3a2a20; --ok: #5cc58a; --no: #e27070;
+      --predio: #7aa7d6; --marca: #f39b55; --sel: #ff5c8f; --nav: #0f1419; --nav-texto: #e7e7e4;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16181c; --panel: #1f2227; --texto: #e7e7e4; --suave: #9aa0a8; --borde: #34383f;
+    --acento: #f08a4b; --acento-suave: #3a2a20; --ok: #5cc58a; --no: #e27070;
+    --predio: #7aa7d6; --marca: #f39b55; --sel: #ff5c8f; --nav: #0f1419; --nav-texto: #e7e7e4;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--texto); font: 13px/1.45 system-ui, "Segoe UI", Roboto, sans-serif;
+         display: grid; height: 100vh; overflow: hidden;
+         grid-template-columns: 250px 1fr; grid-template-rows: 60px 40px 1fr;
+         grid-template-areas: "logo nav" "logo mapa" "panel mapa"; }
+
+  /* logo 250x100 */
+  #logo { grid-area: logo; width: 250px; height: 100px; background: var(--panel); border-right: 1px solid var(--borde);
+          border-bottom: 1px solid var(--borde); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  #logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  #logo .marcador { width: 230px; height: 84px; border: 2px dashed var(--borde); border-radius: 10px; display: flex;
+                    flex-direction: column; align-items: center; justify-content: center; color: var(--suave); text-align: center; gap: 2px; }
+  #logo .marcador b { font-size: 20px; letter-spacing: .12em; color: var(--texto); }
+
+  /* navbar 60px */
+  nav { grid-area: nav; height: 60px; background: var(--nav); color: var(--nav-texto); display: flex; align-items: center;
+        gap: 14px; padding: 0 16px; min-width: 0; }
+  #ruta { display: flex; align-items: center; gap: 6px; font-size: 14px; white-space: nowrap; overflow: hidden; min-width: 0; flex: 1; }
+  #ruta a { color: var(--nav-texto); opacity: .75; text-decoration: none; cursor: pointer; }
+  #ruta a:hover { opacity: 1; text-decoration: underline; }
+  #ruta a.actual { opacity: 1; font-weight: 600; cursor: default; text-decoration: none; }
+  #ruta span.sep { opacity: .45; }
+  nav label { font-size: 11px; opacity: .7; text-transform: uppercase; letter-spacing: .06em; display: block; margin-bottom: 1px; }
+  nav select { font: inherit; background: rgba(255,255,255,.08); color: var(--nav-texto); border: 1px solid rgba(255,255,255,.22);
+               border-radius: 6px; padding: 4px 8px; width: 210px; }
+  nav select option { color: #1f2328; background: #fff; }
+  nav select:focus { outline: 2px solid var(--acento); }
+  #carga { font-size: 12px; opacity: 0; transition: opacity .2s; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  #carga.activo { opacity: 1; }
+  #carga i { width: 12px; height: 12px; border: 2px solid var(--nav-texto); border-top-color: transparent; border-radius: 50%;
+             animation: giro .8s linear infinite; }
+  @keyframes giro { to { transform: rotate(360deg); } }
+
+  /* panel lateral (debajo del logo) */
+  aside { grid-area: panel; background: var(--panel); border-right: 1px solid var(--borde); overflow-y: auto; padding: 12px;
+          display: flex; flex-direction: column; gap: 12px; width: 250px; }
+  #mapa { grid-area: mapa; }
+  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--suave); margin: 0 0 5px; }
+  label.campo { font-size: 11px; color: var(--suave); display: block; margin-bottom: 3px; }
+  input#codigo { font: 14px ui-monospace, Consolas, monospace; letter-spacing: .02em; color: var(--texto); background: var(--bg);
+                 border: 1px solid var(--borde); border-radius: 6px; padding: 7px 8px; width: 100%; }
+  input#codigo:focus { outline: 2px solid var(--acento); outline-offset: -1px; }
+  .ayuda { font-size: 11px; color: var(--suave); margin: 4px 0 0; }
+  #estado { font-size: 12px; color: var(--suave); min-height: 1.2em; }
+  #segmentos { display: flex; flex-wrap: wrap; gap: 2px; font: 11px ui-monospace, Consolas, monospace; margin-top: 6px; }
+  #segmentos span { padding: 1px 3px; border-radius: 3px; background: var(--bg); border: 1px solid var(--borde); color: var(--suave); }
+  #segmentos span.lleno { background: var(--acento-suave); color: var(--texto); border-color: var(--acento); }
+  ol#jerarquia { list-style: none; margin: 0; padding: 0; }
+  ol#jerarquia li { display: grid; grid-template-columns: 10px 84px 1fr; gap: 5px; padding: 4px 0;
+                    border-bottom: 1px dashed var(--borde); align-items: baseline; }
+  ol#jerarquia .punto { width: 8px; height: 8px; border-radius: 50%; background: var(--borde); align-self: center; }
+  ol#jerarquia li.ok .punto { background: var(--ok); }
+  ol#jerarquia li.no .punto { background: var(--no); }
+  ol#jerarquia .nivel { color: var(--suave); font-size: 11px; }
+  ol#jerarquia .valor { font-weight: 600; overflow-wrap: anywhere; }
+  ol#jerarquia .valor code { font-weight: 400; color: var(--suave); margin-left: 3px; }
+  #ficha { border: 1px solid var(--acento); border-radius: 8px; padding: 10px; display: none; }
+  #ficha dl { display: grid; grid-template-columns: 78px 1fr; gap: 3px 6px; margin: 0 0 8px; }
+  #ficha dt { color: var(--suave); font-size: 11px; }
+  #ficha dd { margin: 0; overflow-wrap: anywhere; }
+  #ficha .acciones { display: flex; gap: 5px; flex-wrap: wrap; }
+  #ficha button { font: inherit; font-size: 11px; cursor: pointer; border-radius: 6px; padding: 5px 8px;
+                  background: transparent; color: var(--texto); border: 1px solid var(--borde); }
+  #ficha button.pri { background: var(--acento); color: #fff; border-color: var(--acento); }
+  #resultados { max-height: 220px; overflow-y: auto; border: 1px solid var(--borde); border-radius: 6px; display: none; }
+  #resultados div { padding: 5px 7px; cursor: pointer; font: 11px ui-monospace, Consolas, monospace;
+                    border-bottom: 1px solid var(--borde); display: flex; justify-content: space-between; gap: 6px; }
+  #resultados div:hover { background: var(--acento-suave); }
+  #resultados div span { color: var(--suave); font-family: system-ui, sans-serif; white-space: nowrap; }
+  .leyenda { display: grid; gap: 3px; font-size: 11px; color: var(--suave); }
+  .leyenda i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .leaflet-container { background: var(--bg); font: inherit; }
+  .etiqueta-mun { background: transparent; border: 0; box-shadow: none; color: var(--texto); font-weight: 600; font-size: 11px;
+                  text-shadow: 0 0 3px var(--panel), 0 0 3px var(--panel); }
+  .etiqueta-mun::before { display: none; }
+
+  @media (max-width: 800px) {
+    body { overflow: auto; height: auto; grid-template-columns: 60px 1fr; grid-template-rows: 60px 60vh auto;
+           grid-template-areas: "logo nav" "mapa mapa" "panel panel"; }
+    #logo { width: 60px; height: 60px; }
+    #logo .marcador { width: 50px; height: 50px; border-width: 1px; }
+    #logo .marcador b { font-size: 10px; } #logo .marcador small { display: none; }
+    nav { gap: 8px; padding: 0 8px; }
+    #ruta, #carga { display: none; }
+    nav select { width: 100%; }
+    nav > div { flex: 1; min-width: 0; }
+    aside { width: auto; border-right: 0; }
+  }
+</style>
+</head>
+<body>
+<div id="logo">
+  <img src="logo.png" alt="Logo" onerror="this.replaceWith(document.getElementById('logoMarcador').content.cloneNode(true))">
+  <template id="logoMarcador"><div class="marcador"><b>LOGO</b><small>250 × 100 px · visor/logo.png</small></div></template>
+</div>
+
+<nav>
+  <div id="ruta"></div>
+  <div id="carga"><i></i><span>Cargando…</span></div>
+  <div><label for="selDep">Departamento</label><select id="selDep"></select></div>
+  <div><label for="selMun">Municipio</label><select id="selMun"></select></div>
+</nav>
+
+<aside>
+  <section>
+    <label class="campo" for="codigo">Número predial (2 a 30 dígitos) o anterior (20)</label>
+    <input id="codigo" inputmode="numeric" autocomplete="off" placeholder="Ej.: 15001…">
+    <p class="ayuda">2 = departamento · 5 = municipio · 7 = zona · 17 = manzana/vereda · 30 = predio. Enter para buscar.</p>
+    <div id="segmentos"></div>
+  </section>
+  <div id="estado"></div>
+  <section>
+    <h2>Ubicación del código</h2>
+    <ol id="jerarquia"></ol>
+  </section>
+  <section id="ficha">
+    <h2>Predio identificado</h2>
+    <dl id="fichaDatos"></dl>
+    <div class="acciones">
+      <button class="pri" id="btnCopiar">Copiar número</button>
+      <button id="btnGmaps">Google Maps</button>
+      <button id="btnGeo">GeoJSON</button>
+    </div>
+  </section>
+  <section>
+    <h2 id="tituloRes">Predios que coinciden</h2>
+    <div id="resultados"></div>
+  </section>
+  <div class="leyenda">
+    <span><i style="background:var(--predio)"></i>Predios del municipio</span>
+    <span><i style="background:var(--marca)"></i>Coinciden con el código</span>
+    <span><i style="background:var(--sel)"></i>Predio identificado</span>
+  </div>
+</aside>
+
+<div id="mapa"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function () {
+  var DATOS = 'datos/';
+  var COLOMBIA = [[-4.3, -79.1], [13.5, -66.8]];
+  var MAX_LISTA = 300;
+  var ZOOM_VECINOS = 13;   // desde este zoom se cargan los municipios vecinos visibles
+  var ZOOM_OCULTAR = 11;   // por debajo se ocultan los predios (salvo el municipio buscado)
+  var MAX_VISIBLES = 3;
+  var MAX_CACHE = 6;
+  // Departamentos proyectados: aparecen en el selector pero aun sin datos
+  var PROYECTADOS = [{ codigo: '25', nombre: 'Cundinamarca' }, { codigo: '85', nombre: 'Casanare' }];
+
+  var NIVELES = [
+    { hasta: 2, nombre: 'Departamento' }, { hasta: 5, nombre: 'Municipio' }, { hasta: 7, nombre: 'Zona' },
+    { hasta: 9, nombre: 'Sector' }, { hasta: 11, nombre: 'Comuna' }, { hasta: 13, nombre: 'Barrio' },
+    { hasta: 17, nombre: 'Manzana / vereda' }, { hasta: 21, nombre: 'Terreno' }, { hasta: 22, nombre: 'Condición' },
+    { hasta: 24, nombre: 'Edificio / torre' }, { hasta: 26, nombre: 'Piso' }, { hasta: 30, nombre: 'Unidad predial' }
+  ];
+
+  var css = function (v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); };
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------------- mapa
+  var lienzo = L.canvas({ padding: 0.3, tolerance: 4 });
+  var mapa = L.map('mapa', { preferCanvas: true, renderer: lienzo, zoomSnap: 0.5, wheelPxPerZoomLevel: 90 }).fitBounds(COLOMBIA);
+  var calles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { maxZoom: 20, maxNativeZoom: 19, attribution: '&copy; OpenStreetMap · Datos: IGAC' }).addTo(mapa);
+  var satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 20, maxNativeZoom: 19, attribution: 'Esri World Imagery · Datos: IGAC' });
+  L.control.layers({ 'Calles': calles, 'Satélite': satelite }, null, { position: 'topright' }).addTo(mapa);
+  L.control.scale({ imperial: false }).addTo(mapa);
+
+  var capaMunicipios = L.layerGroup().addTo(mapa);
+  var capasPredios = {};
+  var capaMarca = null, capaSel = null;
+
+  // ---------------- estado
+  var indice = null, deps = {}, muns = {}, limites = {};
+  var cache = {}, pendientes = {};
+  var munActual = null, depActual = null, seleccion = null;
+  var cargando = 0;
+
+  function estado(t) { $('estado').textContent = t || ''; }
+  function indicador(delta) {
+    cargando = Math.max(0, cargando + delta);
+    $('carga').classList.toggle('activo', cargando > 0);
+  }
+  function limpio(v) { return (v || '').replace(/\D/g, '').slice(0, 30); }
+  function bboxLL(b) { return [[b[1], b[0]], [b[3], b[2]]]; }
+  function unirBbox(lista) {
+    lista = lista.filter(Boolean);
+    if (!lista.length) return null;
+    return [Math.min.apply(0, lista.map(function (b) { return b[0]; })), Math.min.apply(0, lista.map(function (b) { return b[1]; })),
+            Math.max.apply(0, lista.map(function (b) { return b[2]; })), Math.max.apply(0, lista.map(function (b) { return b[3]; }))];
+  }
+  function fmt(n, d) { return n == null ? '—' : Number(n).toLocaleString('es-CO', { maximumFractionDigits: d == null ? 2 : d }); }
+  function titulo(t) { return (t || '').toLowerCase().replace(/(^|[\s(.-])\S/g, function (s) { return s.toUpperCase(); }); }
+
+  // ---------------- carga inicial
+  var pedirLimites = fetch(DATOS + 'limites.json').then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (fc) {
+      (fc ? fc.features : []).forEach(function (f) {
+        var cod = String(f.properties.CODIGO || '').replace(/\D/g, '');
+        if (cod.length === 4) cod = '0' + cod;
+        limites[cod.slice(-5)] = f;
+      });
+    }).catch(function () {});
+  indicador(1);
+  Promise.all([fetch(DATOS + 'indice.json').then(function (r) {
+    if (!r.ok) throw new Error('No se encontró visor/datos/indice.json. Ejecute exportar_web.py.');
+    return r.json();
+  }), pedirLimites]).then(function (res) {
+    indicador(-1);
+    indice = res[0];
+    indice.departamentos.forEach(function (d) {
+      d.bbox = unirBbox(d.municipios.map(function (m) { return m.bbox; }));
+      deps[d.codigo] = d;
+      d.municipios.forEach(function (m) { m.dep = d; muns[m.codigo] = m; });
+    });
+    llenarDeps();
+    var inicial = limpio(location.hash.slice(1)) || (indice.departamentos.length === 1 ? indice.departamentos[0].codigo : '');
+    $('codigo').value = inicial;
+    buscar();
+  }).catch(function (e) { indicador(-1); estado(e.message + ' (Abra el visor con 4_ABRIR_VISOR.bat)'); });
+
+  function llenarDeps() {
+    var s = $('selDep');
+    s.innerHTML = '<option value="">— Departamento —</option>';
+    indice.departamentos.forEach(function (d) {
+      var n = d.municipios.filter(function (m) { return m.bbox; }).length;
+      s.add(new Option(titulo(d.nombre) + ' (' + n + ' mun.)', d.codigo));
+    });
+    PROYECTADOS.filter(function (p) { return !deps[p.codigo]; }).forEach(function (p) {
+      var o = new Option(p.nombre + ' — proyectado', p.codigo);
+      o.disabled = true;
+      s.add(o);
+    });
+  }
+  function llenarMuns(dep) {
+    var s = $('selMun');
+    s.innerHTML = '<option value="">— Municipio —</option>';
+    s.disabled = !dep;
+    if (!dep) return;
+    dep.municipios.slice().sort(function (a, b) { return a.nombre.localeCompare(b.nombre, 'es'); }).forEach(function (m) {
+      var o = new Option(titulo(m.nombre) + (m.bbox ? '' : ' (sin datos)'), m.codigo);
+      o.disabled = !m.bbox;
+      s.add(o);
+    });
+  }
+  $('selDep').addEventListener('change', function () { ir(this.value); });
+  $('selMun').addEventListener('change', function () { ir(this.value || $('selDep').value); });
+  function ir(codigo) { $('codigo').value = codigo; buscar(); }
+
+  // ---------------- carga de municipios (con cache y sin pedir dos veces lo mismo)
+  function cargarMunicipio(m) {
+    if (cache[m.codigo]) return Promise.resolve(cache[m.codigo]);
+    if (pendientes[m.codigo]) return pendientes[m.codigo];
+    indicador(1);
+    $('carga').lastElementChild.textContent = 'Cargando ' + titulo(m.nombre) + '…';
+    pendientes[m.codigo] = fetch(DATOS + m.archivo).then(function (r) { return r.json(); }).then(function (fc) {
+      var libres = Object.keys(cache).filter(function (k) { return !capasPredios[k]; });
+      while (Object.keys(cache).length >= MAX_CACHE && libres.length) delete cache[libres.shift()];
+      cache[m.codigo] = fc.features;
+      return fc.features;
+    }).finally(function () { delete pendientes[m.codigo]; indicador(-1); });
+    return pendientes[m.codigo];
+  }
+
+  function dibujarMunicipio(m, feats) {
+    if (capasPredios[m.codigo]) {
+      if (!mapa.hasLayer(capasPredios[m.codigo])) capasPredios[m.codigo].addTo(mapa);
+      return;
+    }
+    capasPredios[m.codigo] = L.geoJSON({ type: 'FeatureCollection', features: feats }, {
+      renderer: lienzo, smoothFactor: 1.5,
+      style: { color: css('--predio'), weight: 0.6, fillOpacity: 0.07 },
+      onEachFeature: function (f, capa) { capa.on('click', function () { elegir(f, true); }); }
+    }).addTo(mapa);
+    if (capaMarca) capaMarca.bringToFront();
+    if (capaSel) capaSel.bringToFront();
+  }
+
+  // ---------------- navegacion continua
+  function cruza(b, v) { return b && b[0] <= v.getEast() && b[2] >= v.getWest() && b[1] <= v.getNorth() && b[3] >= v.getSouth(); }
+  function distancia(m, c) {
+    return Math.pow((m.bbox[0] + m.bbox[2]) / 2 - c.lng, 2) + Math.pow((m.bbox[1] + m.bbox[3]) / 2 - c.lat, 2);
+  }
+  mapa.on('moveend', function () {
+    if (!indice) return;
+    var z = mapa.getZoom();
+    // Alejado: se ocultan los predios de los vecinos para que el mapa se mueva fluido
+    if (z < ZOOM_OCULTAR) {
+      Object.keys(capasPredios).forEach(function (k) {
+        if (!munActual || k !== munActual.codigo) { mapa.removeLayer(capasPredios[k]); delete capasPredios[k]; }
+      });
+      return;
+    }
+    if (z < ZOOM_VECINOS) return;
+    var v = mapa.getBounds(), c = v.getCenter();
+    var visibles = Object.keys(muns).map(function (k) { return muns[k]; })
+      .filter(function (m) { return m.archivo && cruza(m.bbox, v); })
+      .sort(function (a, b) { return distancia(a, c) - distancia(b, c); })
+      .slice(0, MAX_VISIBLES);
+    var quedan = visibles.map(function (m) { return m.codigo; });
+    if (munActual) quedan.push(munActual.codigo);
+    Object.keys(capasPredios).forEach(function (k) {
+      if (quedan.indexOf(k) === -1) { mapa.removeLayer(capasPredios[k]); delete capasPredios[k]; }
+    });
+    visibles.forEach(function (m) {
+      cargarMunicipio(m).then(function (feats) { if (cruza(m.bbox, mapa.getBounds())) dibujarMunicipio(m, feats); })
+        .catch(function (e) { estado('Error al cargar ' + m.nombre + ': ' + e.message); });
+    });
+  });
+
+  // ---------------- busqueda
+  var espera = null;
+  $('codigo').addEventListener('input', function () { clearTimeout(espera); espera = setTimeout(buscar, 350); });
+  $('codigo').addEventListener('keydown', function (e) { if (e.key === 'Enter') { clearTimeout(espera); buscar(); } });
+
+  function buscar() {
+    if (!indice) return;
+    var c = limpio($('codigo').value);
+    history.replaceState(null, '', c ? '#' + c : location.pathname);
+    pintarSegmentos(c);
+    var dep = deps[c.slice(0, 2)] || null;
+    var mun = c.length >= 5 ? muns[c.slice(0, 5)] || null : null;
+    depActual = dep;
+    munActual = mun && mun.archivo ? mun : null;
+
+    $('selDep').value = dep ? dep.codigo : '';
+    llenarMuns(dep);
+    $('selMun').value = mun ? mun.codigo : '';
+    pintarRuta(dep, mun);
+
+    limpiarMarcas();
+    if (!munActual) {
+      quitarPredios();
+      pintarJerarquia(c, dep, mun, 0);
+      mostrarMunicipios(dep, null, false);
+      var proy = PROYECTADOS.filter(function (p) { return p.codigo === c.slice(0, 2); })[0];
+      if (proy) estado(proy.nombre + ': departamento proyectado, aún sin datos cargados.');
+      else if (c.length >= 2 && !dep) estado('El departamento ' + c.slice(0, 2) + ' no está en el visor.');
+      else if (c.length >= 5 && !mun) estado('No existe el municipio ' + c.slice(0, 5) + '.');
+      else if (mun) estado(titulo(mun.nombre) + ': sin predios en el IGAC (gestor catastral propio).');
+      else estado('');
+      return;
+    }
+    mostrarMunicipios(mun.dep, mun, true);
+    cargarMunicipio(mun).then(function (feats) {
+      if (limpio($('codigo').value) !== c) return;
+      dibujarMunicipio(mun, feats);
+      marcar(c, mun, feats);
+    }).catch(function (e) { estado('Error al cargar ' + mun.nombre + ': ' + e.message); });
+  }
+
+  function marcar(c, mun, feats) {
+    var anterior = c.length === 20;
+    var campo = anterior ? 'NUMERO_CATASTRAL_ANTERIOR' : 'NUMERO_CATASTRAL';
+    var coinciden = c.length <= 5 ? [] : feats.filter(function (f) {
+      var v = f.properties[campo] || '';
+      return anterior ? v === c : v.indexOf(c) === 0;
+    });
+    if (anterior && !coinciden.length) {
+      anterior = false;
+      coinciden = feats.filter(function (f) { return (f.properties.NUMERO_CATASTRAL || '').indexOf(c) === 0; });
+    }
+    var exacto = coinciden.length === 1 && (c.length === 30 || anterior) ? coinciden[0] : null;
+
+    if (c.length <= 5) {
+      mapa.fitBounds(bboxLL(mun.bbox));
+      estado(titulo(mun.nombre) + ': ' + fmt(feats.length, 0) + ' predios (' + fmt(mun.urbanos, 0) + ' urbanos, ' +
+             fmt(mun.rurales, 0) + ' rurales). Clic en un predio o siga escribiendo el código.');
+    } else if (!coinciden.length) {
+      mapa.fitBounds(bboxLL(mun.bbox));
+      estado('Ningún predio de ' + titulo(mun.nombre) + ' empieza por ese código.');
+    } else {
+      capaMarca = L.geoJSON({ type: 'FeatureCollection', features: coinciden }, {
+        renderer: lienzo, style: { color: css('--marca'), weight: 1.4, fillOpacity: 0.35 },
+        onEachFeature: function (f, capa) { capa.on('click', function () { elegir(f, true); }); }
+      }).addTo(mapa);
+      if (!exacto) mapa.fitBounds(capaMarca.getBounds(), { maxZoom: 18, padding: [20, 20] });
+      estado(fmt(coinciden.length, 0) + ' predio(s) coinciden con el código.');
+    }
+    pintarJerarquia(c, mun.dep, mun, coinciden.length);
+    listar(c.length > 5 ? coinciden : []);
+    if (exacto) elegir(exacto, false);
+  }
+
+  // ---------------- predio identificado
+  function elegir(f, desdeMapa) {
+    seleccion = f;
+    if (capaSel) mapa.removeLayer(capaSel);
+    capaSel = L.geoJSON(f, { renderer: lienzo, style: { color: css('--sel'), weight: 3, fillOpacity: 0.25 } }).addTo(mapa);
+    mapa.fitBounds(capaSel.getBounds(), { maxZoom: 19, padding: [60, 60] });
+    var p = f.properties, cod = p.NUMERO_CATASTRAL || '';
+    var m = muns[cod.slice(0, 5)];
+    if (desdeMapa) {
+      $('codigo').value = cod;
+      history.replaceState(null, '', '#' + cod);
+      pintarSegmentos(cod);
+      if (m && m !== munActual) { munActual = m; $('selMun').value = m.codigo; pintarRuta(m.dep, m); mostrarMunicipios(m.dep, m, true); }
+      pintarJerarquia(cod, m && m.dep, m, 1);
+    }
+    $('fichaDatos').innerHTML = [
+      ['Número', '<code>' + cod + '</code>'],
+      ['Anterior', '<code>' + (p.NUMERO_CATASTRAL_ANTERIOR || '—') + '</code>'],
+      ['Ubicación', m ? titulo(m.nombre) + ', ' + titulo(m.dep.nombre) : '—'],
+      ['Zona', p.ZONA === 'URBANO' ? 'Urbano' : 'Rural'],
+      [p.ZONA === 'URBANO' ? 'Manzana' : 'Vereda', '<code>' + (p.MANZANA_VEREDA || '—') + '</code>'],
+      ['Área', fmt(p.AREA_M2) + ' m²' + (p.AREA_M2 >= 10000 ? ' (' + fmt(p.AREA_M2 / 10000, 4) + ' ha)' : '')],
+      ['Coordenadas', fmt(p.LATITUD, 6) + ', ' + fmt(p.LONGITUD, 6)]
+    ].map(function (r) { return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join('');
+    $('ficha').style.display = 'block';
+  }
+  $('btnCopiar').addEventListener('click', function () {
+    if (seleccion) navigator.clipboard.writeText(seleccion.properties.NUMERO_CATASTRAL).then(function () { estado('Número copiado.'); });
+  });
+  $('btnGmaps').addEventListener('click', function () {
+    if (seleccion) window.open('https://www.google.com/maps?q=' + seleccion.properties.LATITUD + ',' + seleccion.properties.LONGITUD, '_blank');
+  });
+  $('btnGeo').addEventListener('click', function () {
+    if (!seleccion) return;
+    var blob = new Blob([JSON.stringify({ type: 'FeatureCollection', features: [seleccion] })], { type: 'application/geo+json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'predio_' + seleccion.properties.NUMERO_CATASTRAL + '.geojson';
+    a.click();
+  });
+
+  // ---------------- paneles
+  function pintarRuta(dep, mun) {
+    var partes = [{ t: 'Colombia', c: '' }];
+    if (dep) partes.push({ t: titulo(dep.nombre), c: dep.codigo });
+    if (mun) partes.push({ t: titulo(mun.nombre), c: mun.codigo });
+    $('ruta').innerHTML = partes.map(function (p, i) {
+      return (i ? '<span class="sep">›</span>' : '') +
+             '<a data-c="' + p.c + '" class="' + (i === partes.length - 1 ? 'actual' : '') + '">' + p.t + '</a>';
+    }).join('');
+  }
+  $('ruta').addEventListener('click', function (e) {
+    var a = e.target.closest('a');
+    if (a && !a.classList.contains('actual')) ir(a.getAttribute('data-c'));
+  });
+
+  function pintarSegmentos(c) {
+    var html = '', desde = 0;
+    NIVELES.forEach(function (n) {
+      var parte = c.slice(desde, n.hasta), largo = n.hasta - desde;
+      html += '<span title="' + n.nombre + '" class="' + (parte.length === largo ? 'lleno' : '') + '">' +
+              (parte + '·'.repeat(largo - parte.length)) + '</span>';
+      desde = n.hasta;
+    });
+    $('segmentos').innerHTML = html;
+  }
+
+  function pintarJerarquia(c, dep, mun, cuantos) {
+    var filas = [{ nivel: 'País', valor: 'Colombia', clase: 'ok' }];
+    var desde = 0, conDatos = mun && mun.archivo;
+    NIVELES.forEach(function (n) {
+      if (c.length < n.hasta) return;
+      var parte = c.slice(desde, n.hasta), valor, clase = 'ok';
+      if (n.hasta === 2) { valor = dep ? titulo(dep.nombre) : 'No disponible'; clase = dep ? 'ok' : 'no'; }
+      else if (n.hasta === 5) { valor = mun ? titulo(mun.nombre) : 'No existe'; clase = mun ? (conDatos ? 'ok' : 'pend') : 'no'; }
+      else if (n.hasta === 7) valor = parte === '00' ? 'Rural' : parte === '01' ? 'Urbana' : 'Corregimiento ' + parte;
+      else valor = n.nombre + ' ' + parte;
+      if (n.hasta > 5 && conDatos && !cuantos) clase = 'no';
+      filas.push({ nivel: n.nombre, valor: valor, codigo: parte, clase: clase });
+      desde = n.hasta;
+    });
+    if (c.length > 5 && conDatos) {
+      filas.push({ nivel: 'Resultado', valor: cuantos ? fmt(cuantos, 0) + ' predio(s)' : 'Sin coincidencias', clase: cuantos ? 'ok' : 'no' });
+    }
+    $('jerarquia').innerHTML = filas.map(function (f) {
+      return '<li class="' + f.clase + '"><span class="punto"></span><span class="nivel">' + f.nivel + '</span>' +
+             '<span class="valor">' + f.valor + (f.codigo ? '<code>' + f.codigo + '</code>' : '') + '</span></li>';
+    }).join('');
+  }
+
+  function listar(feats) {
+    var caja = $('resultados');
+    if (!feats.length) { caja.style.display = 'none'; $('tituloRes').style.display = 'none'; return; }
+    $('tituloRes').style.display = '';
+    $('tituloRes').textContent = 'Coinciden' + (feats.length > MAX_LISTA ? ' (primeros ' + MAX_LISTA + ' de ' + fmt(feats.length, 0) + ')' : ' (' + feats.length + ')');
+    caja.innerHTML = '';
+    feats.slice(0, MAX_LISTA).forEach(function (f) {
+      var d = document.createElement('div');
+      d.innerHTML = f.properties.NUMERO_CATASTRAL + '<span>' + fmt(f.properties.AREA_M2, 0) + ' m²</span>';
+      d.addEventListener('click', function () { elegir(f, true); });
+      caja.appendChild(d);
+    });
+    caja.style.display = 'block';
+  }
+
+  // Municipios del departamento: limite oficial (si esta disponible) o recuadro, con clic para entrar
+  function mostrarMunicipios(dep, mun, soloContorno) {
+    capaMunicipios.clearLayers();
+    var lista = dep ? dep.municipios : Object.keys(muns).map(function (k) { return muns[k]; });
+    lista.filter(function (m) { return m.bbox; }).forEach(function (m) {
+      var actual = mun && m.codigo === mun.codigo;
+      var estilo = { renderer: lienzo, color: css('--acento'), weight: actual ? 2.5 : 1,
+                     dashArray: actual || limites[m.codigo] ? null : '4 4',
+                     fillOpacity: soloContorno ? 0 : 0.1, interactive: !actual };
+      var capa = limites[m.codigo] ? L.geoJSON(limites[m.codigo], { style: estilo, interactive: !actual, renderer: lienzo })
+                                   : L.rectangle(bboxLL(m.bbox), estilo);
+      capa.bindTooltip(titulo(m.nombre) + ' · ' + fmt(m.urbanos + m.rurales, 0) + ' predios',
+                       { sticky: true, className: soloContorno ? '' : '' })
+          .on('click', function () { ir(m.codigo); })
+          .addTo(capaMunicipios);
+    });
+    if (soloContorno) return;
+    if (dep && dep.bbox) mapa.fitBounds(bboxLL(dep.bbox));
+    else {
+      var todo = unirBbox(lista.map(function (m) { return m.bbox; }));
+      mapa.fitBounds(todo ? bboxLL(todo) : COLOMBIA, { maxZoom: 8 });
+    }
+  }
+
+  function limpiarMarcas() {
+    if (capaMarca) { mapa.removeLayer(capaMarca); capaMarca = null; }
+    if (capaSel) { mapa.removeLayer(capaSel); capaSel = null; }
+    seleccion = null;
+    $('ficha').style.display = 'none';
+    listar([]);
+  }
+  function quitarPredios() {
+    Object.keys(capasPredios).forEach(function (k) { mapa.removeLayer(capasPredios[k]); });
+    capasPredios = {};
+  }
+})();
+</script>
+</body>
+</html>
