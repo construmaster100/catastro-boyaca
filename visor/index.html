@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Catastro Boyacá</title>
 <link rel="icon" href="img/logo_web.png">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="lib/leaflet/leaflet.min.css">
 <style>
   :root {
     --bg: #f5f4f0; --panel: #ffffff; --texto: #1f2328; --suave: #5d6470; --borde: #dcdad3;
@@ -229,7 +229,7 @@
   #ruta span.sep { opacity: .45; }
   nav label { font-size: 10px; opacity: .7; text-transform: uppercase; letter-spacing: .06em; display: block; margin-bottom: 1px; line-height: 1.1; }
   nav select { font: inherit; font-size: 12px; background: rgba(255,255,255,.08); color: var(--nav-texto); border: 1px solid rgba(255,255,255,.22);
-               border-radius: 6px; padding: 2px 6px; width: 175px; height: 24px; }
+               border-radius: 6px; padding: 2px 6px; width: 150px; height: 24px; }
   nav select option { color: #1f2328; background: #fff; }
   nav select:focus { outline: 2px solid var(--acento); }
   #carga { font-size: 12px; opacity: 0; transition: opacity .2s; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
@@ -444,8 +444,8 @@
   </div>
 </section>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.js"></script>
+<script src="lib/leaflet/leaflet.min.js"></script>
+<script src="lib/proj4/proj4.js"></script>
 <script>
 (function () {
   var DATOS = 'datos/';

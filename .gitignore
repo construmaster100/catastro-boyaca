@@ -1,15 +1,21 @@
-# Datos pesados que se regeneran con los scripts (ver README § 5 y § 16)
+# Datos crudos pesados que se regeneran con los scripts (ver README § 5 y PROCESO.md)
 crudo/
 catastro/
 _organizar/
 
-# Registros, temporales y caches
-*.log
+# Temporales de Excel/Office y del sistema
+~$*
 *.tmp
+Thumbs.db
+desktop.ini
+
+# Registros de ejecucion y caches
+*.log
 __pycache__/
 
-# Configuracion local de Claude Code
+# Configuracion local de Claude Code y notas internas del asistente (no publicar)
 .claude/
+CLAUDE.md
 
 # Respaldo del registro antiguo del visor (su historial ya esta incluido en este repositorio)
 .respaldo_git_visor/

@@ -14,6 +14,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 VISOR = Path(__file__).parent / "visor"
+DOCS = Path(__file__).parent / "docs"          # documentos descargados (se sirven en /docs/...)
 
 
 @lru_cache(maxsize=64)
@@ -22,6 +23,16 @@ def comprimido(ruta, modificado):
 
 
 class Manejador(SimpleHTTPRequestHandler):
+    def translate_path(self, path):
+        # /docs/... se sirve desde la carpeta docs/ del proyecto (fuera de visor/)
+        ruta = path.split("?", 1)[0].split("#", 1)[0]
+        if ruta.startswith("/docs/"):
+            from urllib.parse import unquote
+            destino = (DOCS / unquote(ruta[len("/docs/"):])).resolve()
+            if str(destino).startswith(str(DOCS.resolve())):
+                return str(destino)
+        return super().translate_path(path)
+
     def send_head(self):
         ruta = Path(self.translate_path(self.path))
         if ruta.suffix in (".json", ".html", ".js", ".css") and ruta.is_file() \

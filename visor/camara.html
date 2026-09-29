@@ -62,6 +62,8 @@
   :root[data-theme="dark"] #docs li.actual { background: #3a2f12; }
   #docs li b { font-size: 12.5px; }
   #docs li small { color: var(--suave); font-size: 11px; }
+  #docs li.grupo { border: 0; padding: 8px 2px 2px; cursor: default; font-size: 11px; font-weight: 700; text-transform: uppercase;
+                   letter-spacing: .05em; color: var(--dorado); }
   .chip { display: inline-block; font-size: 10px; font-weight: 700; padding: 0 6px; border-radius: 8px; color: #fff; background: #b4531f; margin-right: 4px; }
   .chip.xls { background: #0f7a3a; }
   #indice { list-style: none; margin: 0; padding: 0; font-size: 12px; }
@@ -131,7 +133,8 @@
 </nav>
 
 <aside>
-  <h2>Estudios publicados</h2>
+  <h2>Estudios económicos</h2>
+  <select id="secDocs" style="width:100%"></select>
   <input id="filtroDocs" type="search" placeholder="Buscar por año o título…">
   <ul id="docs"></ul>
   <section id="bloqueIndice" hidden>
@@ -182,7 +185,7 @@
 <div id="lateral">
   <h2>Boyacá en cifras <span id="anioCifras"></span></h2>
   <div id="cifras" style="display:grid;gap:8px"></div>
-  <h2 style="margin-top:6px">Tableros y fuente</h2>
+  <h2 style="margin-top:6px">Descargas, tableros y fuente</h2>
   <div class="enlaces" id="enlaces"></div>
   <h2 style="margin-top:6px">Sobre el estudio</h2>
   <div id="descripcion" style="font-size:12px;color:var(--suave)"></div>
@@ -193,6 +196,12 @@
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var BASE = 'camara/';
+  // Versiones: local/offline (servidor en este equipo) abren los documentos desde ../docs/;
+  // en linea (GitHub Pages) desde la pagina original de la Camara y los Excel desde el repositorio.
+  var EN_LINEA = location.protocol !== 'file:' && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  var REPO = 'https://github.com/construmaster100/catastro-boyaca/raw/main/';
+  function rutaDoc(d) { return EN_LINEA ? d.url : d.archivo; }
+  function rutaXls(rel) { return EN_LINEA ? REPO + rel : '../' + rel; }
   function fmt(n, d) { return n == null || n === '' || isNaN(n) ? '—' : Number(n).toLocaleString('es-CO', { maximumFractionDigits: d == null ? 1 : d, minimumFractionDigits: 0 }); }
   function esc(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function sinTildes(t) { return String(t || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase(); }
@@ -213,37 +222,60 @@
   var catalogo = null, docActual = null;
   fetch(BASE + 'catalogo.json').then(function (r) { return r.json(); }).then(function (c) {
     catalogo = c;
-    $('bannerSub').textContent = '· ' + c.documentos.length + ' documentos · consultado ' + c.consultado.split('-').reverse().join('/');
-    pintarDocs('');
-    var primero = c.documentos.filter(function (d) { return d.tipo === 'PDF'; })[0];
+    var mb = c.documentos.reduce(function (s, d) { return s + d.mb; }, 0);
+    $('bannerSub').textContent = '· ' + c.secciones.length + ' secciones · ' + c.documentos.length + ' documentos (' + fmt(mb, 0) +
+      ' MB) · consultado ' + c.consultado.split('-').reverse().join('/');
+    $('secDocs').innerHTML = '<option value="">Todas las secciones (' + c.documentos.length + ')</option>' + c.secciones.map(function (s) {
+      var n = c.documentos.filter(function (d) { return d.slug === s.slug; }).length;
+      return '<option value="' + s.slug + '">' + esc(s.nombre) + ' (' + n + ')</option>'; }).join('');
+    $('secDocs').value = 'boyaca-en-cifras';
+    cambiarSeccion();
+    var primero = c.documentos.filter(function (d) { return d.tipo === 'PDF' && d.slug === 'boyaca-en-cifras'; })[0];
     if (primero) abrirDoc(primero, 1);
-    $('enlaces').innerHTML = c.tableros.map(function (t, i) {
-      return '<a href="' + esc(t.url) + '" target="_blank" rel="noopener">📈 Tablero Power BI ' + (i + 1) + '</a>'; }).join('') +
-      '<a href="' + esc(c.pagina) + '" target="_blank" rel="noopener">🌐 Página de la Cámara de Comercio</a>';
-    $('descripcion').innerHTML = c.descripcion.slice(0, 3).map(function (p) { return '<p style="margin:0 0 6px">' + esc(p) + '</p>'; }).join('');
   });
+  function seccionActual() { return catalogo.secciones.filter(function (s) { return s.slug === $('secDocs').value; })[0]; }
+  function cambiarSeccion() {
+    var s = seccionActual(), slug = s ? s.slug : '';
+    pintarDocs($('filtroDocs').value);
+    // descargas en Excel: catalogo general y, por seccion, texto y tablas extraidas
+    var xls = '<a href="' + rutaXls('docs/camara_comercio/catalogo_camara_comercio.xlsx') + '" download>📗 Catálogo de todos los estudios (Excel)</a>';
+    if (s) xls += '<a href="' + rutaXls('docs/camara_comercio/' + slug + '/texto_' + slug + '.xlsx') + '" download>📗 Texto de los documentos · ' + esc(s.nombre) + ' (Excel)</a>' +
+                  '<a href="' + rutaXls('docs/camara_comercio/' + slug + '/tablas_' + slug + '.xlsx') + '" download>📗 Tablas extraídas · ' + esc(s.nombre) + ' (Excel)</a>';
+    var tabs = catalogo.tableros.filter(function (t) { return !s || t.slug === slug; });
+    $('enlaces').innerHTML = xls + tabs.map(function (t) {
+      return '<a href="' + esc(t.url) + '" target="_blank" rel="noopener">📈 ' + esc(t.titulo) + '</a>'; }).join('') +
+      '<a href="' + esc(s ? s.url : catalogo.pagina) + '" target="_blank" rel="noopener">🌐 ' + (s ? esc(s.nombre) + ' en' : 'Estudios económicos de') + ' cctunja.org.co</a>';
+    $('descripcion').innerHTML = ((s ? s.descripcion : []) || []).slice(0, 3).map(function (p) { return '<p style="margin:0 0 6px">' + esc(p) + '</p>'; }).join('') ||
+      '<p style="margin:0">' + catalogo.secciones.length + ' líneas de estudios económicos de la Cámara de Comercio de Tunja.</p>';
+  }
   function pintarDocs(q) {
     q = sinTildes(q);
-    $('docs').innerHTML = catalogo.documentos.map(function (d, i) {
-      if (q && sinTildes(d.titulo + ' ' + d.anio + ' ' + d.tipo).indexOf(q) === -1) return '';
-      return '<li data-i="' + i + '" class="' + (d === docActual ? 'actual' : '') + '"><b><span class="chip ' + (d.tipo === 'Excel' ? 'xls' : '') + '">' +
-             d.tipo + '</span>' + esc(d.titulo) + '</b><small>' + (d.paginas ? d.paginas + ' páginas · ' : '') + fmt(d.mb) + ' MB' +
-             (d.indice && d.indice.length ? ' · índice ' + d.indice.length : '') + '</small></li>';
-    }).join('');
+    var slug = $('secDocs').value, seccion = null, html = '';
+    catalogo.documentos.forEach(function (d, i) {
+      if (slug && d.slug !== slug) return;
+      if (q && sinTildes(d.titulo + ' ' + d.anio + ' ' + d.tipo + ' ' + d.seccion).indexOf(q) === -1) return;
+      if (!slug && d.seccion !== seccion) { seccion = d.seccion; html += '<li class="grupo">' + esc(seccion) + '</li>'; }
+      html += '<li data-i="' + i + '" class="' + (d === docActual ? 'actual' : '') + '"><b><span class="chip ' + (d.tipo === 'Excel' ? 'xls' : '') + '">' +
+              d.tipo + '</span>' + esc(d.titulo) + '</b><small>' + (d.anio ? d.anio + ' · ' : '') + (d.paginas ? d.paginas + ' págs · ' : '') +
+              fmt(d.mb) + ' MB' + (d.indice && d.indice.length ? ' · índice ' + d.indice.length : '') + '</small></li>';
+    });
+    $('docs').innerHTML = html || '<li class="grupo">Sin resultados</li>';
   }
   $('filtroDocs').addEventListener('input', function () { pintarDocs(this.value); });
+  $('secDocs').addEventListener('change', cambiarSeccion);
   $('docs').addEventListener('click', function (e) {
-    var li = e.target.closest('li'); if (!li) return;
+    var li = e.target.closest('li'); if (!li || li.classList.contains('grupo')) return;
     var d = catalogo.documentos[+li.dataset.i];
-    if (d.tipo === 'Excel') { verVista('municipal'); return; }
+    if (d.tipo === 'Excel' && d.slug === 'boyaca-en-cifras') { verVista('municipal'); return; }
+    if (d.tipo !== 'PDF') { location.href = rutaDoc(d); return; }       // otros Excel / Word: descarga
     abrirDoc(d, 1); verVista('documentos');
   });
   function abrirDoc(d, pagina) {
     docActual = d;
     $('docTitulo').textContent = d.titulo + (d.paginas ? ' · ' + d.paginas + ' páginas' : '');
-    $('visorPdf').src = BASE + d.archivo + '#page=' + (pagina || 1);
-    $('docAbrir').href = BASE + d.archivo + '#page=' + (pagina || 1);
-    $('docDescargar').href = BASE + d.archivo;
+    $('visorPdf').src = rutaDoc(d) + '#page=' + (pagina || 1);
+    $('docAbrir').href = rutaDoc(d) + '#page=' + (pagina || 1);
+    $('docDescargar').href = rutaDoc(d);
     $('docOriginal').href = d.url;
     $('irPagina').max = d.paginas || '';
     $('irPagina').value = pagina || 1;
@@ -256,8 +288,8 @@
   $('indice').addEventListener('click', function (e) { var li = e.target.closest('li'); if (li) irA(+li.dataset.p); });
   function irA(p) {
     if (!docActual) return;
-    $('visorPdf').src = BASE + docActual.archivo + '#page=' + p;    // cambiar el #page recarga el visor en esa pagina
-    $('docAbrir').href = BASE + docActual.archivo + '#page=' + p;
+    $('visorPdf').src = rutaDoc(docActual) + '#page=' + p;    // cambiar el #page recarga el visor en esa pagina
+    $('docAbrir').href = rutaDoc(docActual) + '#page=' + p;
     $('irPagina').value = p;
   }
   $('irPagina').addEventListener('change', function () { var p = Math.max(1, +this.value || 1); irA(p); });

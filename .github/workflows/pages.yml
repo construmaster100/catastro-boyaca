@@ -1,0 +1,31 @@
+# Publica la VERSION ONLINE (solo la carpeta visor/) en GitHub Pages.
+# Manual a proposito: se ejecuta solo cuando se aprueba la version final
+# (GitHub -> Actions -> "Publicar visor" -> Run workflow). Requiere Settings -> Pages -> Source: GitHub Actions.
+name: Publicar visor
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.despliegue.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: visor
+      - id: despliegue
+        uses: actions/deploy-pages@v4
