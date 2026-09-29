@@ -28,21 +28,12 @@
   html, body { margin: 0; height: 100%; }
   body { background: var(--bg); color: var(--texto); font: 13px/1.45 system-ui, "Segoe UI", Roboto, sans-serif;
          display: grid; height: 100vh; overflow: hidden;
-         grid-template-columns: 250px 1fr; grid-template-rows: var(--alto-banner) 60px 40px 1fr;
-         grid-template-areas: "banner banner" "logo nav" "logo mapa" "panel mapa"; }
-  :root { --alto-banner: 150px; }
-  body.sin-banner { --alto-banner: 0px; }
+         grid-template-columns: 250px 1fr; grid-template-rows: 50px 50px 1fr;
+         grid-template-areas: "logo banner" "logo nav" "panel mapa"; }
 
-  /* banner superior */
+  /* banner (50 px) + barra (50 px) = alto del logo (100 px) */
   #banner { grid-area: banner; position: relative; overflow: hidden; background: #0f4d2e; }
-  #banner .fondo { position: absolute; inset: -20px; background: url(img/banner_web.jpg) center / cover no-repeat;
-                   filter: blur(14px) saturate(1.1); opacity: .9; }
-  #banner img { position: relative; display: block; height: 100%; width: auto; max-width: 100%; margin: 0 auto;
-                object-fit: contain; box-shadow: 0 0 30px rgba(0,0,0,.35); }
-  body.sin-banner #banner img, body.sin-banner #banner .fondo { display: none; }
-  #toggleBanner { position: fixed; top: calc(var(--alto-banner) + 2px); right: 10px; z-index: 1200; font: 600 11px system-ui, sans-serif;
-                  background: rgba(15,77,46,.92); color: #fff; border: 0; border-radius: 0 0 6px 6px; padding: 3px 9px; cursor: pointer; }
-  body:not(.sin-banner) #toggleBanner { top: calc(var(--alto-banner) - 22px); border-radius: 6px 6px 0 0; }
+  #banner img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 22%; }
 
   /* logo 250x100 */
   #logo { grid-area: logo; width: 250px; height: 100px; background: var(--panel); border-right: 1px solid var(--borde);
@@ -53,16 +44,16 @@
   #logo .marcador b { font-size: 20px; letter-spacing: .12em; color: var(--texto); }
 
   /* navbar 60px */
-  nav { grid-area: nav; height: 60px; background: var(--nav); color: var(--nav-texto); display: flex; align-items: center;
+  nav { grid-area: nav; height: 50px; background: var(--nav); color: var(--nav-texto); display: flex; align-items: center;
         gap: 14px; padding: 0 16px; min-width: 0; }
   #ruta { display: flex; align-items: center; gap: 6px; font-size: 14px; white-space: nowrap; overflow: hidden; min-width: 0; flex: 1; }
   #ruta a { color: var(--nav-texto); opacity: .75; text-decoration: none; cursor: pointer; }
   #ruta a:hover { opacity: 1; text-decoration: underline; }
   #ruta a.actual { opacity: 1; font-weight: 600; cursor: default; text-decoration: none; }
   #ruta span.sep { opacity: .45; }
-  nav label { font-size: 11px; opacity: .7; text-transform: uppercase; letter-spacing: .06em; display: block; margin-bottom: 1px; }
-  nav select { font: inherit; background: rgba(255,255,255,.08); color: var(--nav-texto); border: 1px solid rgba(255,255,255,.22);
-               border-radius: 6px; padding: 4px 8px; width: 210px; }
+  nav label { font-size: 10px; opacity: .7; text-transform: uppercase; letter-spacing: .06em; display: block; margin-bottom: 1px; line-height: 1.1; }
+  nav select { font: inherit; font-size: 12px; background: rgba(255,255,255,.08); color: var(--nav-texto); border: 1px solid rgba(255,255,255,.22);
+               border-radius: 6px; padding: 2px 6px; width: 210px; height: 24px; }
   nav select option { color: #1f2328; background: #fff; }
   nav select:focus { outline: 2px solid var(--acento); }
   #carga { font-size: 12px; opacity: 0; transition: opacity .2s; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
@@ -167,9 +158,10 @@
   .control-grilla .dato { color: var(--suave); margin-top: 2px; font-family: ui-monospace, Consolas, monospace; }
 
   @media (max-width: 800px) {
-    :root { --alto-banner: 90px; }
-    body { overflow: auto; height: auto; grid-template-columns: 60px 1fr; grid-template-rows: var(--alto-banner) 60px 60vh auto;
-           grid-template-areas: "banner banner" "logo nav" "mapa mapa" "panel panel"; }
+    body { overflow: auto; height: auto; grid-template-columns: 60px 1fr; grid-template-rows: 60px 60vh auto;
+           grid-template-areas: "logo nav" "mapa mapa" "panel panel"; }
+    #banner { display: none; }
+    nav { height: 60px; }
     #logo { width: 60px; height: 60px; }
     #logo .marcador { width: 50px; height: 50px; border-width: 1px; }
     #logo .marcador b { font-size: 10px; } #logo .marcador small { display: none; }
@@ -205,8 +197,7 @@
   </div>
 </div>
 
-<header id="banner"><div class="fondo"></div><img src="img/banner_web.jpg" alt="Catastro Boyacá"></header>
-<button id="toggleBanner" type="button">▲ Ocultar banner</button>
+<header id="banner"><img src="img/banner_web.jpg" alt="Catastro Boyacá"></header>
 
 <div id="logo" title="Ver portada">
   <img src="img/logo_web.png" alt="Catastro Boyacá" width="250" height="100">
@@ -986,21 +977,6 @@
   $('noPortada').addEventListener('change', function () { guardarPref(this.checked); });
   $('portada').addEventListener('click', function (e) { if (e.target === this) cerrarPortada(); });
   $('logo').addEventListener('click', mostrarPortada);
-  // Banner superior: se puede ocultar para ganar espacio (se recuerda la eleccion)
-  function aplicarBanner(oculto) {
-    document.body.classList.toggle('sin-banner', oculto);
-    $('toggleBanner').textContent = oculto ? '▼ Mostrar banner' : '▲ Ocultar banner';
-    setTimeout(function () { mapa.invalidateSize(); actualizarVista(); dibujarGrilla(); }, 60);
-  }
-  var bannerOculto = false;
-  try { bannerOculto = localStorage.getItem('ocultarBanner') === '1'; } catch (e) {}
-  aplicarBanner(bannerOculto);
-  $('toggleBanner').addEventListener('click', function () {
-    bannerOculto = !bannerOculto;
-    try { localStorage.setItem('ocultarBanner', bannerOculto ? '1' : '0'); } catch (e) {}
-    aplicarBanner(bannerOculto);
-  });
-
   // Se muestra al abrir, salvo que el enlace ya traiga un codigo o el usuario la haya ocultado
   if (!location.hash && !fichaDirecta && !leerPref()) mostrarPortada();
 
