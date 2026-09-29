@@ -108,6 +108,15 @@
   .etq.sector div { border-color: var(--acento); background: var(--acento-suave); }
   .etq.manzana div { font-size: 10px; padding: 1px 4px; }
   .etq.predio div { font-size: 9px; padding: 0 3px; border-radius: 4px; box-shadow: none; opacity: .9; }
+  /* area y cotas del predio seleccionado */
+  .cota, .area-lote { background: none; border: 0; pointer-events: none; }
+  .cota div { position: absolute; white-space: nowrap; font: 700 11px/1 system-ui, sans-serif; color: #7a1030;
+              background: rgba(255,255,255,.92); border: 1px solid var(--sel); border-radius: 3px; padding: 2px 4px; }
+  .area-lote div { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; text-align: center;
+                   font: 800 13px/1.15 system-ui, sans-serif; color: #fff; background: var(--sel);
+                   border-radius: 6px; padding: 3px 7px; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+  .area-lote div small { display: block; font-weight: 500; font-size: 10px; opacity: .9; }
+  .leaflet-container.lejos .cota, .leaflet-container.lejos .area-lote { display: none; }
 
   @media (max-width: 800px) {
     body { overflow: auto; height: auto; grid-template-columns: 60px 1fr; grid-template-rows: 60px 60vh auto;
@@ -153,6 +162,7 @@
     <div class="acciones">
       <button class="pri" id="btnCopiar">Copiar número</button>
       <button id="btnGmaps">Google Maps</button>
+      <button class="pri" id="btnFicha">🖨 Ficha / Imprimir</button>
       <button id="btnGeo">GeoJSON</button>
       <button id="btnQuitar" title="También con la tecla Esc o clic en un espacio vacío del mapa">✕ Quitar selección</button>
     </div>
@@ -525,8 +535,10 @@
   function elegir(f, desdeMapa) {
     seleccion = f;
     if (capaSel) mapa.removeLayer(capaSel);
-    capaSel = L.geoJSON(f, { renderer: lienzo, style: { color: css('--sel'), weight: 3, fillOpacity: 0.25 } }).addTo(mapa);
-    mapa.fitBounds(capaSel.getBounds(), { maxZoom: 19, padding: [60, 60] });
+    var poligono = L.geoJSON(f, { renderer: lienzo, style: { color: css('--sel'), weight: 3, fillOpacity: 0.25 } });
+    capaSel = L.featureGroup([poligono]).addTo(mapa);
+    mapa.fitBounds(poligono.getBounds(), { maxZoom: 20, padding: [90, 90] });
+    agregarCotas(f, capaSel);
     var p = f.properties, cod = p.NUMERO_CATASTRAL || '';
     var m = muns[cod.slice(0, 5)];
     if (desdeMapa) {
@@ -546,7 +558,235 @@
       ['Coordenadas', fmt(p.LATITUD, 6) + ', ' + fmt(p.LONGITUD, 6)]
     ].map(function (r) { return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join('');
     $('ficha').style.display = 'block';
+    if (fichaDirecta) { fichaDirecta = false; abrirFicha(true); }
   }
+  // ---------------- area y cotas del predio seleccionado
+  var ZOOM_COTAS = 16, ANGULO_RECTO = 12, TRAMO_MINIMO = 0.3, NUM_COTAS = 4;
+  mapa.on('zoomend', function () { mapa.getContainer().classList.toggle('lejos', mapa.getZoom() < ZOOM_COTAS); });
+
+  function anilloPrincipal(g) {
+    if (g.type === 'Polygon') return g.coordinates[0];
+    return g.coordinates.map(function (p) { return p[0]; })
+      .sort(function (a, b) { return b.length - a.length; })[0];
+  }
+
+  // Une tramos casi alineados (cambio de direccion < ANGULO_RECTO) y quita tramos minimos
+  function ladosPrincipales(pts) {
+    var cambio = true;
+    while (cambio && pts.length > 3) {
+      cambio = false;
+      for (var i = 0; i < pts.length && pts.length > 3; i++) {
+        var a = pts[(i - 1 + pts.length) % pts.length], b = pts[i], c = pts[(i + 1) % pts.length];
+        var ang1 = Math.atan2(b.y - a.y, b.x - a.x), ang2 = Math.atan2(c.y - b.y, c.x - b.x);
+        var giro = Math.abs(((ang2 - ang1) * 180 / Math.PI + 540) % 360 - 180);
+        var corto = Math.hypot(b.x - a.x, b.y - a.y) < TRAMO_MINIMO;
+        if (giro < ANGULO_RECTO || corto) { pts.splice(i, 1); cambio = true; i--; }
+      }
+    }
+    return pts;
+  }
+
+  function dentro(p, pts) {   // punto en poligono (coordenadas proyectadas)
+    var r = false;
+    for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      if ((pts[i].py > p.y) !== (pts[j].py > p.y) &&
+          p.x < (pts[j].px - pts[i].px) * (p.y - pts[i].py) / (pts[j].py - pts[i].py) + pts[i].px) r = !r;
+    }
+    return r;
+  }
+
+  // Centroide del lote; si cae fuera (lotes en L o U), el centro del tramo interior mas ancho a esa altura
+  function puntoInterior(original) {
+    // se calcula respecto al primer vertice para no perder precision con coordenadas grandes
+    var bx = original[0].px, by = original[0].py;
+    var pts = original.map(function (q) { return { px: q.px - bx, py: q.py - by }; });
+    var r = puntoInteriorLocal(pts);
+    return [r[0] + bx, r[1] + by];
+  }
+  function puntoInteriorLocal(pts) {
+    var a = 0, cx = 0, cy = 0;
+    for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      var k = pts[j].px * pts[i].py - pts[i].px * pts[j].py;
+      a += k; cx += (pts[j].px + pts[i].px) * k; cy += (pts[j].py + pts[i].py) * k;
+    }
+    var c = a ? { x: cx / (3 * a), y: cy / (3 * a) } : { x: pts[0].px, y: pts[0].py };
+    if (dentro(c, pts)) return [c.x, c.y];
+    var cortes = [];
+    for (i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      if ((pts[i].py > c.y) !== (pts[j].py > c.y)) {
+        cortes.push(pts[i].px + (c.y - pts[i].py) * (pts[j].px - pts[i].px) / (pts[j].py - pts[i].py));
+      }
+    }
+    cortes.sort(function (u, v) { return u - v; });
+    var mejor = null;
+    for (i = 0; i + 1 < cortes.length; i += 2) {
+      if (!mejor || cortes[i + 1] - cortes[i] > mejor[1] - mejor[0]) mejor = [cortes[i], cortes[i + 1]];
+    }
+    return mejor ? [(mejor[0] + mejor[1]) / 2, c.y] : [c.x, c.y];
+  }
+
+  // Geometria del lote en metros: vertices, lados principales (linderos) con longitud y rumbo
+  var RUMBOS = ['Oriente', 'Nororiente', 'Norte', 'Noroccidente', 'Occidente', 'Suroccidente', 'Sur', 'Suroriente'];
+  function geometriaLote(f) {
+    var anillo = anilloPrincipal(f.geometry).slice(0, -1);   // sin el punto de cierre repetido
+    if (anillo.length < 3) return null;
+    // metros locales (misma aproximacion elipsoidal que el calculo del area)
+    var lat0 = anillo.reduce(function (s, c) { return s + c[1]; }, 0) / anillo.length * Math.PI / 180;
+    var my = 111132.92 - 559.82 * Math.cos(2 * lat0) + 1.175 * Math.cos(4 * lat0);
+    var mx = 111412.84 * Math.cos(lat0) - 93.5 * Math.cos(3 * lat0);
+    var pts = anillo.map(function (c) {
+      var pp = mapa.project([c[1], c[0]], 20);
+      return { lng: c[0], lat: c[1], x: c[0] * mx, y: c[1] * my, px: pp.x, py: pp.y };
+    });
+    var simp = ladosPrincipales(pts.slice());
+    var s = 0;
+    simp.forEach(function (a, i) { var b = simp[(i + 1) % simp.length]; s += a.x * b.y - b.x * a.y; });
+    var lados = simp.map(function (a, i) {
+      var b = simp[(i + 1) % simp.length], dx = b.x - a.x, dy = b.y - a.y, largo = Math.hypot(dx, dy) || 1;
+      var nx = (s > 0 ? dy : -dy) / largo, ny = (s > 0 ? -dx : dx) / largo;   // normal hacia afuera
+      var k = ((Math.round(Math.atan2(ny, nx) / (Math.PI / 4)) % 8) + 8) % 8;
+      return { a: a, b: b, largo: largo, nx: nx, ny: ny, rumbo: RUMBOS[k],
+               desde: String.fromCharCode(65 + i), hasta: String.fromCharCode(65 + (i + 1) % simp.length) };
+    });
+    var perimetro = 0;
+    pts.forEach(function (a, i) { var b = pts[(i + 1) % pts.length]; perimetro += Math.hypot(b.x - a.x, b.y - a.y); });
+    return { pts: pts, simp: simp, lados: lados, perimetro: perimetro };
+  }
+
+  function agregarCotas(f, grupo) {
+    var geo = geometriaLote(f);
+    if (!geo) return;
+    var anillo = geo.pts.map(function (q) { return [q.lng, q.lat]; });
+    var pts = geo.simp;
+    var lados = geo.lados.slice().sort(function (u, v) { return v.largo - u.largo; }).slice(0, NUM_COTAS);
+
+    lados.forEach(function (l) {
+      var dx = l.b.px - l.a.px, dy = l.b.py - l.a.py, n = Math.hypot(dx, dy) || 1;
+      var ang = Math.atan2(dy, dx) * 180 / Math.PI;
+      if (ang > 90) ang -= 180; else if (ang < -90) ang += 180;       // texto siempre legible
+      var nx = -dy / n, ny = dx / n;                                    // normal
+      var medio = { x: (l.a.px + l.b.px) / 2, y: (l.a.py + l.b.py) / 2 };
+      if (dentro({ x: medio.x + nx * 5, y: medio.y + ny * 5 }, pts)) { nx = -nx; ny = -ny; }  // hacia afuera
+      var ll = mapa.unproject([medio.x, medio.y], 20);
+      grupo.addLayer(L.marker(ll, { interactive: false, keyboard: false, zIndexOffset: 20000, icon: L.divIcon({
+        className: 'cota', iconSize: null,
+        html: '<div style="transform: translate(-50%,-50%) translate(' + (nx * 13).toFixed(1) + 'px,' + (ny * 13).toFixed(1) +
+              'px) rotate(' + ang.toFixed(1) + 'deg)">' + fmt(l.largo, 2) + ' m</div>' }) }));
+    });
+
+    var p = f.properties, centro = mapa.unproject(puntoInterior(anillo.map(function (c) {
+      var pp = mapa.project([c[1], c[0]], 20); return { px: pp.x, py: pp.y };
+    })), 20);
+    grupo.addLayer(L.marker(centro, { interactive: false, keyboard: false, zIndexOffset: 30000, icon: L.divIcon({
+      className: 'area-lote', iconSize: null,
+      html: '<div>' + fmt(p.AREA_M2, 1) + ' m²' + (p.AREA_M2 >= 10000 ? '<small>' + fmt(p.AREA_M2 / 10000, 3) + ' ha</small>' : '') +
+            '</div>' }) }));
+    mapa.getContainer().classList.toggle('lejos', mapa.getZoom() < ZOOM_COTAS);
+  }
+
+  // ---------------- ficha imprimible: area, numero y linderos, con plano del lote
+  function esc(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function formatoCodigo(c) {
+    return c ? [c.slice(0, 2), c.slice(2, 5), c.slice(5, 7), c.slice(7, 9), c.slice(9, 11), c.slice(11, 13),
+                c.slice(13, 17), c.slice(17, 21), c.slice(21, 22), c.slice(22, 24), c.slice(24, 26), c.slice(26, 30)].join(' ') : '—';
+  }
+
+  function planoSVG(geo, area) {
+    var W = 620, H = 430, M = 70;
+    var xs = geo.pts.map(function (q) { return q.x; }), ys = geo.pts.map(function (q) { return q.y; });
+    var x0 = Math.min.apply(0, xs), x1 = Math.max.apply(0, xs), y0 = Math.min.apply(0, ys), y1 = Math.max.apply(0, ys);
+    var k = Math.min((W - 2 * M) / ((x1 - x0) || 1), (H - 2 * M) / ((y1 - y0) || 1));
+    var ox = (W - (x1 - x0) * k) / 2, oy = (H - (y1 - y0) * k) / 2;
+    function P(q) { return { px: ox + (q.x - x0) * k, py: H - oy - (q.y - y0) * k }; }
+    var contorno = geo.pts.map(function (q) { var p = P(q); return p.px.toFixed(1) + ',' + p.py.toFixed(1); }).join(' ');
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H +
+      '" font-family="Arial, sans-serif"><rect width="100%" height="100%" fill="#fff"/>' +
+      '<polygon points="' + contorno + '" fill="#f6e3ea" stroke="#b0164a" stroke-width="2"/>';
+    geo.lados.forEach(function (l) {
+      var a = P(l.a), b = P(l.b), mxp = (a.px + b.px) / 2, myp = (a.py + b.py) / 2;
+      var ang = Math.atan2(b.py - a.py, b.px - a.px) * 180 / Math.PI;
+      if (ang > 90) ang -= 180; else if (ang < -90) ang += 180;
+      var tx = mxp + l.nx * 16, ty = myp - l.ny * 16;
+      svg += '<text x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" font-size="13" font-weight="700" fill="#7a1030" ' +
+             'text-anchor="middle" dominant-baseline="middle" transform="rotate(' + ang.toFixed(1) + ' ' + tx.toFixed(1) + ' ' + ty.toFixed(1) + ')">' +
+             fmt(l.largo, 2) + ' m</text>';
+    });
+    geo.lados.forEach(function (l) {
+      var a = P(l.a);
+      svg += '<circle cx="' + a.px.toFixed(1) + '" cy="' + a.py.toFixed(1) + '" r="4" fill="#b0164a"/>' +
+             '<text x="' + (a.px + 8).toFixed(1) + '" y="' + (a.py - 8).toFixed(1) + '" font-size="13" font-weight="700" fill="#1f2328">' + l.desde + '</text>';
+    });
+    var c = puntoInterior(geo.pts.map(P));
+    svg += '<text x="' + c[0].toFixed(1) + '" y="' + c[1].toFixed(1) + '" font-size="16" font-weight="800" fill="#1f2328" text-anchor="middle">' +
+           fmt(area, 2) + ' m²</text>';
+    // norte y escala
+    svg += '<g transform="translate(' + (W - 40) + ',50)"><path d="M0,-28 L9,6 L0,0 L-9,6 Z" fill="#1f2328"/>' +
+           '<text y="22" font-size="13" font-weight="700" text-anchor="middle">N</text></g>';
+    var paso = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000].filter(function (v) { return v * k <= 160; }).pop() || 1;
+    svg += '<g transform="translate(20,' + (H - 22) + ')"><rect width="' + (paso * k).toFixed(1) + '" height="6" fill="#1f2328"/>' +
+           '<text y="-6" font-size="11">0</text><text x="' + (paso * k).toFixed(1) + '" y="-6" font-size="11" text-anchor="middle">' + paso + ' m</text></g>';
+    return svg + '</svg>';
+  }
+
+  function abrirFicha(enEstaVentana) {
+    if (!seleccion) return;
+    var f = seleccion, p = f.properties, geo = geometriaLote(f);
+    if (!geo) return;
+    var m = muns[(p.NUMERO_CATASTRAL || '').slice(0, 5)];
+    var logo = new URL('img/logo_web.png', location.href).href;
+    var hoy = new Date().toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' });
+    var filas = [
+      ['Número predial', '<b class="mono">' + formatoCodigo(p.NUMERO_CATASTRAL) + '</b>'],
+      ['Número anterior', '<span class="mono">' + esc(p.NUMERO_CATASTRAL_ANTERIOR || '—') + '</span>'],
+      ['Departamento', m ? esc(titulo(m.dep.nombre)) : '—'],
+      ['Municipio', m ? esc(titulo(m.nombre)) + ' (' + m.codigo + ')' : '—'],
+      ['Zona', p.ZONA === 'URBANO' ? 'Urbana' : 'Rural'],
+      [p.ZONA === 'URBANO' ? 'Manzana' : 'Vereda', '<span class="mono">' + esc(p.MANZANA_VEREDA || '—') + '</span>'],
+      ['Área del terreno', '<b>' + fmt(p.AREA_M2, 2) + ' m²</b>' + (p.AREA_M2 >= 10000 ? ' (' + fmt(p.AREA_M2 / 10000, 4) + ' ha)' : '')],
+      ['Perímetro', fmt(geo.perimetro, 2) + ' m'],
+      ['Coordenadas (centro)', fmt(p.LATITUD, 6) + ', ' + fmt(p.LONGITUD, 6) + ' (MAGNA-SIRGAS)']
+    ].map(function (r) { return '<tr><th>' + r[0] + '</th><td>' + r[1] + '</td></tr>'; }).join('');
+    var linderos = geo.lados.map(function (l, i) {
+      return '<tr><td>' + (i + 1) + '</td><td>' + l.rumbo + '</td><td>' + l.desde + ' – ' + l.hasta + '</td><td class="num">' + fmt(l.largo, 2) + ' m</td></tr>';
+    }).join('');
+    var nombre = 'predio_' + p.NUMERO_CATASTRAL;
+    var html = '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Ficha ' + nombre + '</title><style>' +
+      'body{font:13px/1.45 Arial,sans-serif;color:#1f2328;margin:0;background:#eee}' +
+      '.hoja{background:#fff;width:190mm;min-height:270mm;margin:12px auto;padding:12mm;box-sizing:border-box}' +
+      'header{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #0f4d2e;padding-bottom:8px;margin-bottom:12px}' +
+      'header img{height:64px}header h1{font-size:18px;margin:0;color:#0f4d2e;text-align:right}header small{display:block;font-weight:400;color:#5d6470;font-size:11px}' +
+      'h2{font-size:13px;color:#0f4d2e;text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px}' +
+      'table{border-collapse:collapse;width:100%}th,td{border:1px solid #d6d3cc;padding:5px 7px;text-align:left;vertical-align:top}' +
+      'th{background:#f3f1ec;width:34%;font-weight:600}.mono{font-family:Consolas,monospace}.num{text-align:right;font-variant-numeric:tabular-nums}' +
+      '.linderos th{width:auto}.plano{text-align:center;border:1px solid #d6d3cc;margin-top:4px}.plano svg{max-width:100%;height:auto}' +
+      '.nota{font-size:10.5px;color:#5d6470;margin-top:12px;border-top:1px solid #d6d3cc;padding-top:6px}' +
+      '.barra{text-align:center;padding:10px;position:sticky;top:0;background:#1f2a36}' +
+      '.barra button{font:600 13px Arial;margin:0 4px;padding:8px 14px;border-radius:6px;border:0;cursor:pointer;background:#b4531f;color:#fff}' +
+      '.barra button.sec{background:#fff;color:#1f2328}' +
+      '@media print{body{background:#fff}.barra{display:none}.hoja{margin:0;width:auto;min-height:0;padding:0}@page{size:letter;margin:12mm}}' +
+      '</style></head><body>' +
+      '<div class="barra"><button onclick="print()">🖨 Imprimir / Guardar PDF</button>' +
+      '<button class="sec" id="png">⬇ Descargar plano (imagen)</button><button class="sec" onclick="close()">Cerrar</button></div>' +
+      '<div class="hoja"><header><img src="' + logo + '" alt="Catastro Boyacá"><h1>Ficha del predio<small>Generada el ' + hoy + '</small></h1></header>' +
+      '<h2>Identificación</h2><table>' + filas + '</table>' +
+      '<h2>Plano del lote</h2><div class="plano" id="plano">' + planoSVG(geo, p.AREA_M2) + '</div>' +
+      '<h2>Linderos</h2><table class="linderos"><tr><th>#</th><th>Rumbo</th><th>Tramo</th><th class="num">Longitud</th></tr>' + linderos + '</table>' +
+      '<p class="nota">Fuente: IGAC, Datos Abiertos Catastrales (capa ' + (p.ZONA === 'URBANO' ? 'U_TERRENO' : 'R_TERRENO') + '). ' +
+      'Área, perímetro y longitudes calculados a partir de la geometría publicada (MAGNA-SIRGAS, EPSG:4686); linderos simplificados ' +
+      'uniendo tramos casi rectos. Documento informativo: no reemplaza el certificado catastral ni un levantamiento topográfico.</p></div>' +
+      '<script>document.getElementById("png").onclick=function(){var s=document.querySelector("#plano svg"),' +
+      'x=new XMLSerializer().serializeToString(s),i=new Image(),c=document.createElement("canvas");c.width=s.width.baseVal.value*2;' +
+      'c.height=s.height.baseVal.value*2;i.onload=function(){var g=c.getContext("2d");g.scale(2,2);g.drawImage(i,0,0);' +
+      'c.toBlob(function(b){var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="' + nombre + '_plano.png";a.click();});};' +
+      'i.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(x);};<\/script></body></html>';
+    var w = enEstaVentana === true ? window : window.open('', '_blank');
+    if (!w) { estado('El navegador bloqueó la ventana de la ficha: permita las ventanas emergentes.'); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+  }
+  $('btnFicha').addEventListener('click', function () { abrirFicha(false); });
+  // Enlace directo a la ficha: index.html?ficha#<numero predial de 30 digitos>
+  var fichaDirecta = /[?&]ficha\b/.test(location.search);
+
   // Quitar la seleccion: vuelve al nivel de municipio sin mover el mapa
   function deseleccionar() {
     if (!seleccion && !capaMarca) return;
