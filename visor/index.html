@@ -75,8 +75,20 @@
   #itemsMun .vacio { color: var(--suave); cursor: default; display: block; }
   #listaMun .cabeza h2 { align-items: center; gap: 6px; }
   #listaMun .cabeza h2 #cuentaMun { margin-right: auto; }
-  #btnJerarquia { font: 600 11px system-ui, sans-serif; padding: 4px 8px; border-radius: 6px; text-transform: none;
-                  letter-spacing: 0; border: 0; cursor: pointer; background: #0f4d2e; color: #fff; }
+  #btnEconomia { font: 600 11px system-ui, sans-serif; padding: 4px 8px; border-radius: 6px; text-transform: none;
+                 letter-spacing: 0; border: 1px solid #0f4d2e; cursor: pointer; background: #0f4d2e; color: #fff; white-space: nowrap; }
+  #btnEconomia[aria-pressed="true"] { background: #b8860b; border-color: #8a6508; }
+  #btnJerarquia.enlace { display: block; margin-top: 8px; padding: 0; border: 0; background: none; cursor: pointer;
+                         font: 600 11.5px system-ui, sans-serif; color: #1e3a8a; text-decoration: underline; }
+  /* cifras economicas por zona urbana */
+  .eco-etq { background: none; border: 0; pointer-events: none; }
+  .eco-etq div { transform: translate(-50%, 0); white-space: nowrap; text-align: center; font: 700 10.5px/1.15 system-ui, sans-serif;
+                 color: #3d2c00; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 5px #fff; }
+  .eco-etq div small { display: block; font-weight: 500; font-size: 9.5px; }
+  .eco-leyenda { background: var(--panel); color: var(--texto); border: 1px solid var(--borde); border-radius: 8px; padding: 6px 9px;
+                 font-size: 11px; box-shadow: 0 1px 5px rgba(0,0,0,.2); max-width: 230px; }
+  .eco-leyenda b { display: block; margin-bottom: 3px; }
+  .eco-leyenda svg { display: block; margin: 2px 0; }
   #btnJerarquia:hover { background: #166b40; }
 
   /* resumen de areas del municipio */
@@ -187,6 +199,14 @@
   /* banner (50 px) + barra (50 px) = alto del logo (100 px) */
   #banner { grid-area: banner; position: relative; overflow: hidden; background: #fff; border-bottom: 1px solid var(--borde); }
   #banner img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center; }
+  /* selector de categoria economica (aparece en el banner con las cifras economicas activas) */
+  #banner .banner-eco { display: none; position: absolute; inset: 0; align-items: center; justify-content: center; gap: 10px;
+                        background: linear-gradient(90deg, #fff8e6, #fdecc0 50%, #fff8e6); border-bottom: 2px solid #b8860b; }
+  body.con-economia #banner .banner-eco { display: flex; }
+  #banner .banner-eco label { font: 700 13px system-ui, sans-serif; color: #6b4e00; white-space: nowrap; }
+  #banner .banner-eco select { font: 600 13px system-ui, sans-serif; color: #3d2c00; background: #fff; border: 1px solid #b8860b;
+                               border-radius: 6px; padding: 5px 8px; max-width: 70%; }
+  #banner .banner-eco select:focus { outline: 2px solid #b8860b; }
 
   /* logo 250x100 */
   #logo { grid-area: logo; width: 250px; height: 100px; background: var(--panel); border-right: 1px solid var(--borde);
@@ -305,7 +325,9 @@
 </style>
 </head>
 <body>
-<header id="banner"><img src="img/banner_web.jpg" alt="Catastro Boyacá"></header>
+<header id="banner"><img src="img/banner_web.jpg" alt="Catastro Boyacá">
+  <div class="banner-eco"><label for="selEco">💰 Categoría económica</label><select id="selEco"></select></div>
+</header>
 <div id="logoPerito"><img src="img/logoperito_web.png" alt="Perito Catastral e Inmobiliario Juan Yamil López #01" width="250" height="100"></div>
 
 <div id="logo" title="Ver todo Boyacá">
@@ -379,7 +401,8 @@
 <section id="listaMun" aria-label="Municipios">
   <div class="cabeza">
     <h2>Municipios <span id="cuentaMun"></span>
-      <button id="btnJerarquia" type="button" title="Jerarquía urbana y áreas de los 123 municipios">📊 Jerarquía</button></h2>
+      <button id="btnEconomia" type="button" aria-pressed="false"
+              title="Apaga la imagen del departamento y muestra las cifras económicas de cada zona urbana">💰 Cifras económicas</button></h2>
     <div class="campo-mun">
       <input id="filtroMun" type="text" autocomplete="off" placeholder="Buscar municipio o código…"
              role="combobox" aria-expanded="false" aria-controls="itemsMun">
@@ -399,6 +422,7 @@
       <div class="barra-uso" id="barraUso"><i></i></div>
       <div class="leyenda-uso"><span id="lyUrb"></span><span id="lyRur"></span></div>
       <span class="categoria" id="resumenCat"></span>
+      <button id="btnJerarquia" class="enlace" type="button">Ver jerarquía urbana de los 123 municipios ›</button>
     </section>
     <section id="indicadoresMun">
       <h2 id="indTitulo">Indicadores socioeconómicos</h2>
@@ -836,6 +860,7 @@
   }
   function pintarNombres() {
     capaNombres.clearLayers();
+    if (economiaActiva) return;                 // con las cifras economicas activas no se escriben nombres
     var v = mapa.getBounds(), ocupados = [];
     var W = 96, H = 34;                                     // tamano aproximado de la etiqueta en pixeles
     centrosMun.forEach(function (it) {
@@ -1296,8 +1321,11 @@
   var lienzoUrbano = L.canvas({ pane: 'urbano', padding: 0.3 });
   var capaUrbana = L.layerGroup().addTo(mapa);
   controlCapas.addOverlay(capaUrbana, 'Zonas urbanas');
+  var zonasFC = null;
   fetch(DATOS + 'zonas_urbanas.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (fc) {
     if (!fc) return;
+    zonasFC = fc;
+    setTimeout(function () { intentarEconomiaInicial(); }, 0);
     var cab = { type: 'FeatureCollection', features: fc.features.filter(function (f) { return f.properties.TIPO === 'cabecera'; }) };
     var cen = { type: 'FeatureCollection', features: fc.features.filter(function (f) { return f.properties.TIPO !== 'cabecera'; }) };
     [[cab, 7, 3.5, null], [cen, 5, 2.5, '6 5']].forEach(function (c) {
@@ -1333,7 +1361,7 @@
     nombresProvincias();
   }).catch(function () {});
   function nombresProvincias() {   // los nombres de provincia solo a escala departamental
-    var ver = mapa.hasLayer(capaProvincias) && mapa.getZoom() < 9.5;
+    var ver = mapa.hasLayer(capaProvincias) && mapa.getZoom() < 9.5 && !economiaActiva;
     if (ver && !mapa.hasLayer(capaNombresProv)) capaNombresProv.addTo(mapa);
     if (!ver && mapa.hasLayer(capaNombresProv)) mapa.removeLayer(capaNombresProv);
   }
@@ -1348,7 +1376,131 @@
       if (d && d.provincia) { li.dataset.texto += ' ' + sinTildes(d.provincia); li.title += ' · Provincia ' + d.provincia; }
     });
     pintarResumen(munActual);
+    setTimeout(function () { intentarEconomiaInicial(); }, 0);
   }).catch(function () {});
+
+  // ---------------- boton "Cifras economicas": apaga la imagen y muestra la economia de cada zona urbana
+  mapa.createPane('economia').style.zIndex = 620;                  // encima de etiquetas de municipio
+  var capaEconomia = L.layerGroup(), leyendaEco = null, economiaActiva = false;
+  // Categorias economicas disponibles (Camara de Comercio de Tunja, Boyaca en Cifras 2024)
+  var VARIABLES_ECO = [
+    { k: 'valor_agregado', t: 'Valor agregado', u: 'miles de millones $', d: 1, pre: '$ ' },
+    { k: 'va_hab', t: 'Valor agregado por habitante', u: 'millones $ por habitante', d: 1, pre: '$ ',
+      f: function (d) { return d.valor_agregado && d.poblacion ? d.valor_agregado * 1000 / d.poblacion : null; } },
+    { k: 'empresas_renovadas', t: 'Empresas renovadas', u: 'empresas', d: 0 },
+    { k: 'empresas_matriculadas', t: 'Empresas nuevas (matrículas)', u: 'empresas', d: 0 },
+    { k: 'empresas_canceladas', t: 'Empresas canceladas', u: 'empresas', d: 0 },
+    { k: 'comfaboy_empleos', t: 'Empleos formales (COMFABOY)', u: 'empleos', d: 0 },
+    { k: 'comfaboy_empresas', t: 'Empresas afiliadas a COMFABOY', u: 'empresas', d: 0 },
+    { k: 'captaciones', t: 'Captaciones financieras', u: 'millones $', d: 0, pre: '$ ' },
+    { k: 'colocaciones', t: 'Colocaciones (créditos)', u: 'millones $', d: 0, pre: '$ ' },
+    { k: 'finagro', t: 'Créditos FINAGRO (agro)', u: 'millones $', d: 0, pre: '$ ' },
+    { k: 'bancoldex', t: 'Créditos BANCOLDEX (empresas)', u: 'millones $', d: 0, pre: '$ ' },
+    { k: 'produccion_agricola_ton', t: 'Producción agrícola 2023', u: 'toneladas', d: 0 },
+    { k: 'bovinos', t: 'Inventario bovino', u: 'cabezas', d: 0 }
+  ];
+  var varEco = VARIABLES_ECO[0];
+  function valorEco(d) { var v = varEco.f ? varEco.f(d) : d[varEco.k]; return typeof v === 'number' && v > 0 ? v : null; }
+
+  function construirEconomia() {
+    capaEconomia.clearLayers();
+    etiquetasEco = [];
+    if (!indic || !zonasFC) return false;
+    var centros = {};                                              // centro de la cabecera de cada municipio
+    zonasFC.features.forEach(function (f) {
+      if (f.properties.TIPO === 'cabecera') centros[f.properties.CODIGO] = L.geoJSON(f).getBounds().getCenter();
+    });
+    var datos = Object.keys(indic.municipios).map(function (c) { return { c: c, d: indic.municipios[c], v: valorEco(indic.municipios[c]) }; })
+      .filter(function (x) { return x.v != null && (centros[x.c] || (muns[x.c] && muns[x.c].bbox)); })
+      .sort(function (a, b) { return b.v - a.v; });                 // grandes primero (quedan debajo)
+    if (!datos.length) return true;
+    var vmax = datos[0].v, total = datos.reduce(function (s, x) { return s + x.v; }, 0), RMAX = 34;
+    var esTasa = varEco.k === 'va_hab';                            // una tasa no se suma
+    datos.forEach(function (x, i) {
+      var m = muns[x.c], d = x.d;
+      var pos = centros[x.c] || L.latLng((m.bbox[1] + m.bbox[3]) / 2, (m.bbox[0] + m.bbox[2]) / 2);
+      var r = Math.max(4, RMAX * Math.sqrt(x.v / vmax));           // area del circulo proporcional al valor
+      L.circleMarker(pos, { pane: 'economia', radius: r, color: '#6b4e00', weight: 1.2, fillColor: '#eda100', fillOpacity: 0.55 })
+        .bindTooltip('<b>' + esc(titulo(m.nombre)) + '</b> · ' + esc(d.provincia || '') +
+          '<br>' + varEco.t + ': <b>' + (varEco.pre || '') + fmt(x.v, varEco.d) + '</b> ' + varEco.u +
+          ' (#' + (i + 1) + (esTasa ? '' : ' · ' + fmt(100 * x.v / total, 1) + ' % de Boyacá') + ')' +
+          '<br><span style="opacity:.75">Valor agregado ' + fmt(d.valor_agregado, 1) + ' mil mill. $ · ' +
+          fmt(d.empresas_renovadas, 0) + ' empresas · ' + fmt(d.comfaboy_empleos, 0) + ' empleos formales</span>', { sticky: true })
+        .on('click', function () { ir(x.c); })
+        .addTo(capaEconomia);
+      etiquetasEco.push({ pos: pos, r: r, html: (varEco.pre || '') + fmt(x.v, varEco.d) + '<small>' + esc(titulo(m.nombre)) + '</small>' });
+    });
+    capaEtqEco.addTo(capaEconomia);
+    if (leyendaEco) { leyendaEco.remove(); leyendaEco = leyendaEconomia(esTasa ? null : total).addTo(mapa); }
+    return true;
+  }
+  // Cifras escritas solo donde caben (de mayor a menor valor), se recalculan al mover el mapa
+  var etiquetasEco = [], capaEtqEco = L.layerGroup();
+  function pintarEtiquetasEco() {
+    capaEtqEco.clearLayers();
+    if (!economiaActiva) return;
+    var v = mapa.getBounds(), ocupados = [];
+    etiquetasEco.forEach(function (e) {
+      if (!v.contains(e.pos)) return;
+      var p = mapa.latLngToContainerPoint(e.pos);
+      var caja = [p.x - 38, p.y + e.r, p.x + 38, p.y + e.r + 26];
+      if (ocupados.some(function (o) { return caja[0] < o[2] && caja[2] > o[0] && caja[1] < o[3] && caja[3] > o[1]; })) return;
+      ocupados.push(caja);
+      L.marker(e.pos, { pane: 'economia', interactive: false, keyboard: false, icon: L.divIcon({
+        className: 'eco-etq', iconSize: null, html: '<div style="margin-top:' + (e.r + 2) + 'px">' + e.html + '</div>' }) }).addTo(capaEtqEco);
+    });
+  }
+  mapa.on('moveend', function () { if (economiaActiva) pintarEtiquetasEco(); });
+  function leyendaEconomia(total) {
+    var L0 = L.Control.extend({ options: { position: 'bottomleft' }, onAdd: function () {
+      var div = L.DomUtil.create('div', 'eco-leyenda');
+      div.innerHTML = '<b>' + varEco.t + ' por zona urbana</b>' +
+        '<svg width="120" height="40"><circle cx="20" cy="20" r="17" fill="#eda100" fill-opacity=".55" stroke="#6b4e00"/>' +
+        '<circle cx="60" cy="28" r="9" fill="#eda100" fill-opacity=".55" stroke="#6b4e00"/>' +
+        '<circle cx="90" cy="32" r="5" fill="#eda100" fill-opacity=".55" stroke="#6b4e00"/></svg>' +
+        'Área del círculo proporcional al valor (' + varEco.u + ').' +
+        (total != null ? '<br>Total Boyacá: <b>' + (varEco.pre || '') + fmt(total, varEco.d) + '</b>' : '') +
+        '<br><span style="opacity:.75">Fuente: Cámara de Comercio de Tunja, Boyacá en Cifras 2024.</span>';
+      return div; } });
+    return new L0();
+  }
+  // Selector de categoria economica en el banner (visible solo con las cifras activas)
+  (function () {
+    var s = $('selEco');
+    VARIABLES_ECO.forEach(function (v, i) { s.add(new Option(v.t + ' (' + v.u + ')', i)); });
+    s.addEventListener('change', function () {
+      varEco = VARIABLES_ECO[+this.value];
+      construirEconomia();
+      pintarEtiquetasEco();
+    });
+  })();
+  function activarEconomia(activa) {
+    if (activa && !construirEconomia()) { estado('Las cifras económicas aún se están cargando…'); return; }
+    economiaActiva = activa;
+    // mientras esten las cifras, se ocultan los nombres de municipio y provincia (menos ruido)
+    if (activa) { capaNombres.clearLayers(); if (mapa.hasLayer(capaNombresProv)) mapa.removeLayer(capaNombresProv); }
+    else { actualizarVista(); nombresProvincias(); }
+    $('btnEconomia').setAttribute('aria-pressed', String(activa));
+    $('btnEconomia').textContent = activa ? '✕ Ocultar cifras' : '💰 Cifras económicas';
+    document.body.classList.toggle('con-economia', activa);          // muestra el selector de categorias en el banner
+    if (activa) {
+      if (mapa.hasLayer(capaRaster)) mapa.removeLayer(capaRaster);   // apaga la imagen del departamento
+      capaEconomia.addTo(mapa);
+      leyendaEco = leyendaEconomia().addTo(mapa);
+      construirEconomia();                                            // (rehace la leyenda con el total)
+      pintarEtiquetasEco();
+    } else {
+      mapa.removeLayer(capaEconomia);
+      capaEtqEco.clearLayers();
+      if (leyendaEco) { leyendaEco.remove(); leyendaEco = null; }
+      capaRaster.addTo(mapa); opacidadRaster();                       // vuelve la imagen
+    }
+  }
+  $('btnEconomia').addEventListener('mousedown', function (e) { e.preventDefault(); });
+  $('btnEconomia').addEventListener('click', function () { activarEconomia(!economiaActiva); });
+  // enlace directo: ?economia (se activa cuando ya cargaron indicadores y zonas urbanas)
+  var economiaInicial = /[?&]economia\b/.test(location.search);
+  function intentarEconomiaInicial() { if (economiaInicial && indic && zonasFC) { economiaInicial = false; activarEconomia(true); } }
 
   var COLOR_RIESGO = { 'Sin riesgo': '#0ca30c', 'Bajo': '#7a9a01', 'Medio': '#c98500', 'Alto': '#d03b3b', 'Inviable sanitariamente': '#7a1030' };
   // Titulo grande: habitantes del municipio seleccionado o, sin seleccion, total de Boyaca
