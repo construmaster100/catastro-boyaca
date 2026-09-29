@@ -37,9 +37,11 @@
   #logoPerito img { width: 100%; height: 100%; object-fit: contain; padding: 4px 6px; }
 
   /* mapa departamental: esquina inferior derecha, mismo estilo que los logos (250 px de ancho) */
-  .mapa-dep { width: 250px; background: var(--panel); border-left: 1px solid var(--borde); border-top: 1px solid var(--borde);
-              overflow: hidden; cursor: pointer; margin: 0 !important; }
-  .mapa-dep .marco { position: relative; margin: 8px; aspect-ratio: 1200 / 995; }
+  .mapa-dep { margin-top: auto; background: var(--panel); border: 1px solid var(--borde); border-radius: 8px;
+              padding: 6px 8px 8px; cursor: pointer; position: sticky; bottom: 0; box-shadow: 0 -6px 12px var(--panel); }
+  .mapa-dep h2 { margin-bottom: 3px; }
+  .mapa-dep:hover { border-color: #0f4d2e; }
+  .mapa-dep .marco { position: relative; aspect-ratio: 1200 / 995; }
   .mapa-dep img { display: block; width: 100%; height: 100%; }
   .mapa-dep:hover img { filter: brightness(1.06); }
   .mapa-dep .vista { position: absolute; border: 2px solid #d11f5a; background: rgba(209,31,90,.15); pointer-events: none;
@@ -48,7 +50,6 @@
                            background: #d11f5a; border-color: #fff; }
   .leaflet-bottom.leaflet-right { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
   .leaflet-bottom.leaflet-right .leaflet-control-zoom { margin: 0 10px 0 0; }
-  @media (max-width: 800px) { .mapa-dep { display: none; } }
 
   /* banner (50 px) + barra (50 px) = alto del logo (100 px) */
   #banner { grid-area: banner; position: relative; overflow: hidden; background: #fff; border-bottom: 1px solid var(--borde); }
@@ -84,6 +85,7 @@
   /* panel lateral (debajo del logo) */
   aside { grid-area: panel; background: var(--panel); border-right: 1px solid var(--borde); overflow-y: auto; padding: 12px;
           display: flex; flex-direction: column; gap: 12px; width: 250px; }
+  aside > * { flex-shrink: 0; }   /* el panel hace scroll en vez de comprimir (y encimar) su contenido */
   #mapa { grid-area: mapa; }
   h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--suave); margin: 0 0 5px; }
   label.campo { font-size: 11px; color: var(--suave); display: block; margin-bottom: 3px; }
@@ -262,6 +264,11 @@
     <span><i style="background:var(--marca)"></i>Coinciden con el código</span>
     <span><i style="background:var(--sel)"></i>Predio identificado</span>
   </div>
+  <section class="mapa-dep" id="mapaDep" title="Ver todo el departamento de Boyacá">
+    <h2>Ubicación en Boyacá</h2>
+    <div class="marco"><img src="img/mapa_departamental_mini.png" alt="Mapa departamental de Boyacá">
+      <div class="vista" id="vistaMini" hidden></div></div>
+  </section>
 </aside>
 
 <div id="mapa"></div>
@@ -299,20 +306,8 @@
   var mapa = L.map('mapa', { preferCanvas: true, renderer: lienzo, zoomSnap: 0.5, wheelPxPerZoomLevel: 90, zoomControl: false,
                              attributionControl: false }).fitBounds(COLOMBIA);
   L.control.attribution({ position: 'bottomleft', prefix: '<a href="https://leafletjs.com">Leaflet</a>' }).addTo(mapa);
-  // Mapa departamental (esquina inferior derecha); clic = volver a todo el departamento
-  var MapaDep = L.Control.extend({
-    options: { position: 'bottomright' },
-    onAdd: function () {
-      var div = L.DomUtil.create('div', 'mapa-dep');
-      div.title = 'Ver todo el departamento de Boyacá';
-      div.innerHTML = '<div class="marco"><img src="img/mapa_departamental_mini.png" alt="Mapa departamental de Boyacá">' +
-                      '<div class="vista" id="vistaMini" hidden></div></div>';
-      L.DomEvent.disableClickPropagation(div);
-      L.DomEvent.on(div, 'click', function () { ir('15'); });
-      return div;
-    }
-  });
-  new MapaDep().addTo(mapa);
+  // Mapa departamental (en el panel izquierdo); clic = volver a todo el departamento
+  $('mapaDep').addEventListener('click', function () { ir('15'); });
 
   // Imagen del departamento georreferenciada (coincide con el limite oficial): capa raster sobre el mapa
   var RASTER = { imagen: 'img/mapa_departamental_raster.png', limites: [[4.638312, -74.651678], [6.99176, -71.995337]] };
