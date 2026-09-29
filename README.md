@@ -34,6 +34,7 @@ por departamento y municipio, en formatos que abren QGIS, ArcGIS, AutoCAD, Excel
 14. [Referencias](#14-referencias)
 15. [Visor web (buscador de predios)](#15-visor-web-buscador-de-predios)
 16. [Control de versiones](#16-control-de-versiones)
+17. [Fuente económica externa: Boyacá en Cifras (CCT)](#17-fuente-economica-externa-boyaca-en-cifras-cct)
 
 ---
 
@@ -684,3 +685,28 @@ en `visor/`.
   git subtree push --prefix visor pages main
   ```
   y luego en GitHub: Settings → General → hacerlo público; Settings → Pages → Branch `main` / root.
+
+---
+
+## 17. Fuente económica externa: Boyacá en Cifras (CCT)
+
+Página: <https://cctunja.org.co/estudios-economicos/boyaca-en-cifras/> (Cámara de Comercio de Tunja).
+
+| Archivo | Para qué sirve |
+|---|---|
+| `fuentes/Boyaca-en-Cifras-2024_CCTunja.xlsx` | Copia de la herramienta Excel 2024 (hoja `BaseMun`: 123 municipios × 51 variables). |
+| `importar_cct.py` | Genera `visor/datos/indicadores.json` (indicadores por municipio) y `visor/datos/provincias.json` (13 provincias, unión de límites oficiales). |
+| `analisis_cct.py` | Recorre la página y genera `informes/analisis_boyaca_en_cifras.md` y `informes/coincidencias_municipios.csv`. |
+
+**Resultados principales (29/09/2026)**
+- La página publica 14 fuentes (11 PDF, 1 Excel, 2 Power BI). La **base más precisa y verificable es el Excel 2024**:
+  única en formato de datos, la más reciente, 123/123 municipios, población y totales coinciden al 100 % con el departamento.
+- Anomalías: en la fila «Departamento» los 6 grupos de edad tienen el mismo valor (164.450); el valor agregado
+  municipal (39.049 miles de millones) es 55 % mayor que el PIB 2024 de la hoja departamental (25.177), probablemente
+  precios corrientes frente a constantes; el ICM solo existe para 23 municipios (18,7 %) y viene como puesto.
+- Coincidencia de municipios con el repositorio: **123/123 por código DANE**; 122 con nombre idéntico y 1 que solo
+  difiere en la tilde (Zetaquirá; DIVIPOLA lo trae sin tilde).
+- **Uso del suelo (criterio del usuario):** urbano = actividad económica; rural 10–300 m² = vivienda; rural > 300 m² =
+  agropecuario. Resultado: 209.059 urbanos, 15.314 vivienda rural, 531.794 agropecuarios (2,26 millones de ha).
+  El valor agregado y las empresas siguen a los predios urbanos (Pearson 0,91 y 0,97); la producción agrícola en
+  toneladas **no** sigue al área agropecuaria (≈ 0), porque se concentra en cultivos intensivos de municipios pequeños.
