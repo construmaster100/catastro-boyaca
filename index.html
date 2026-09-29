@@ -41,6 +41,12 @@
                border-radius: 6px; padding: 6px 8px; }
   #filtroMun:focus { outline: 2px solid var(--acento); outline-offset: -1px; }
   #listaMun .cabeza { position: relative; }
+  .campo-mun { position: relative; }
+  .campo-mun #filtroMun { padding-right: 30px; }
+  #quitarMun { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; border: 0;
+               border-radius: 50%; cursor: pointer; background: transparent; color: var(--suave); font-size: 13px; line-height: 1; }
+  #quitarMun:hover { background: var(--acento-suave); color: var(--texto); }
+  #quitarMun[hidden] { display: none; }
   #listaMun .cuerpo-der { padding: 12px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 12px; }
   #listaMun .cuerpo-der > * { flex-shrink: 0; }
   #listaMun .ayuda-der { font-size: 11px; color: var(--suave); margin: 0; }
@@ -335,8 +341,11 @@
 <section id="listaMun" aria-label="Municipios">
   <div class="cabeza">
     <h2>Municipios <span id="cuentaMun"></span></h2>
-    <input id="filtroMun" type="search" autocomplete="off" placeholder="Buscar municipio o código…"
-           role="combobox" aria-expanded="false" aria-controls="itemsMun">
+    <div class="campo-mun">
+      <input id="filtroMun" type="text" autocomplete="off" placeholder="Buscar municipio o código…"
+             role="combobox" aria-expanded="false" aria-controls="itemsMun">
+      <button id="quitarMun" type="button" title="Quitar el municipio (volver a todo Boyacá) · Esc" hidden>✕</button>
+    </div>
     <ul id="itemsMun" role="listbox" hidden></ul>
     <button id="btnJerarquia" type="button">📊 Jerarquía urbana y áreas</button>
   </div>
@@ -1139,7 +1148,16 @@
     var actual = munActual ? munActual.codigo : null;
     Array.prototype.forEach.call($('itemsMun').children, function (li) { li.classList.toggle('actual', li.dataset.codigo === actual); });
     if (document.activeElement !== $('filtroMun')) $('filtroMun').value = munActual ? titulo(munActual.nombre) + ' · ' + munActual.codigo : '';
+    $('quitarMun').hidden = !munActual;
   }
+  // Quitar el municipio: volver a la vista de todo el departamento
+  function quitarMunicipio() {
+    var dep = munActual ? munActual.dep.codigo : (limpio($('codigo').value).slice(0, 2) || '15');
+    capaResalte.clearLayers();
+    ir(dep);
+  }
+  $('quitarMun').addEventListener('mousedown', function (e) { e.preventDefault(); });
+  $('quitarMun').addEventListener('click', quitarMunicipio);
   function itemsVisibles() {
     return Array.prototype.filter.call($('itemsMun').children, function (li) { return !li.hidden && !li.classList.contains('sin'); });
   }
@@ -1399,7 +1417,9 @@
   $('btnQuitar').addEventListener('click', deseleccionar);
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
-    if (!$('ventanaJer').hidden) $('ventanaJer').hidden = true; else deseleccionar();
+    if (!$('ventanaJer').hidden) $('ventanaJer').hidden = true;
+    else if (seleccion || capaMarca) deseleccionar();        // 1.º quita el predio
+    else if (munActual) quitarMunicipio();                   // 2.º quita el municipio
   });
   mapa.on('click', function (e) { if (!e.originalEvent._enPredio) deseleccionar(); });
 
