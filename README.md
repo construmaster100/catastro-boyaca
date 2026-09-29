@@ -759,3 +759,20 @@ los tableros Power BI. Botón **🗺 Catastro** para volver.
 **Inconsistencias de la fuente detectadas:** la fila «Colombia» trae pobreza multidimensional ≈ 40 % (mayor que Chocó,
 33,9 %; mediana departamental 13,4 %) y un «puesto» de competitividad 57; en esos dos indicadores la interfaz no muestra
 la referencia nacional y lo explica.
+
+---
+
+## 20. Arquitectura online / offline, automatización y protocolo Git
+
+Ver **`PROCESO.md`**. En resumen:
+
+- **Tres copias:** Trabajo (`Escritorio\Database`), Online (`Escritorio\Catastro_Boyaca_ONLINE`, clon de
+  `github.com/construmaster100/catastro-boyaca`) y Offline autoportante (`Escritorio\Catastro_Boyaca_OFFLINE`,
+  se abre con `ABRIR_VISOR_OFFLINE.bat`, sin internet ni Python).
+- **Automatización:** `python actualizar_todo.py` (descarga, extracción a Excel, estadísticas, capas, Excel, informe;
+  `--completo`, `--offline`).
+- **Excel:** `docs/camara_comercio/` (catálogo, texto y tablas por sección) y `docs/datos/municipios_boyaca.xlsx`.
+- **Cámara de Comercio:** las 12 secciones de estudios económicos (219 documentos) en `docs/camara_comercio/`,
+  consultables desde `visor/camara.html` (selector de sección).
+- **Protocolo Git** del proyecto «Investigación de mercado» (kraken): configuración local, `.gitignore`,
+  commits por partes; publicación (repositorio público + Pages vía `.github/workflows/pages.yml`) solo con aprobación.
