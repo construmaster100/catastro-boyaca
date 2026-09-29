@@ -28,12 +28,17 @@
   html, body { margin: 0; height: 100%; }
   body { background: var(--bg); color: var(--texto); font: 13px/1.45 system-ui, "Segoe UI", Roboto, sans-serif;
          display: grid; height: 100vh; overflow: hidden;
-         grid-template-columns: 250px 1fr; grid-template-rows: 50px 50px 1fr;
-         grid-template-areas: "logo banner" "logo nav" "panel mapa"; }
+         grid-template-columns: 250px 1fr 250px; grid-template-rows: 50px 50px 1fr;
+         grid-template-areas: "logo banner perito" "logo nav perito" "panel mapa mapa"; }
+
+  /* logo del perito: esquina superior derecha, igual al logo principal (250 x 100) */
+  #logoPerito { grid-area: perito; width: 250px; height: 100px; background: var(--panel); border-left: 1px solid var(--borde);
+                border-bottom: 1px solid var(--borde); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  #logoPerito img { width: 100%; height: 100%; object-fit: contain; padding: 4px 6px; }
 
   /* banner (50 px) + barra (50 px) = alto del logo (100 px) */
-  #banner { grid-area: banner; position: relative; overflow: hidden; background: #0f4d2e; }
-  #banner img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 22%; }
+  #banner { grid-area: banner; position: relative; overflow: hidden; background: #fff; border-bottom: 1px solid var(--borde); }
+  #banner img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center; }
 
   /* logo 250x100 */
   #logo { grid-area: logo; width: 250px; height: 100px; background: var(--panel); border-right: 1px solid var(--borde);
@@ -160,7 +165,7 @@
   @media (max-width: 800px) {
     body { overflow: auto; height: auto; grid-template-columns: 60px 1fr; grid-template-rows: 60px 60vh auto;
            grid-template-areas: "logo nav" "mapa mapa" "panel panel"; }
-    #banner { display: none; }
+    #banner, #logoPerito { display: none; }
     nav { height: 60px; }
     #logo { width: 60px; height: 60px; }
     #logo .marcador { width: 50px; height: 50px; border-width: 1px; }
@@ -198,6 +203,7 @@
 </div>
 
 <header id="banner"><img src="img/banner_web.jpg" alt="Catastro Boyacá"></header>
+<div id="logoPerito"><img src="img/logoperito_web.png" alt="Perito Catastral e Inmobiliario Juan Yamil López #01" width="250" height="100"></div>
 
 <div id="logo" title="Ver portada">
   <img src="img/logo_web.png" alt="Catastro Boyacá" width="250" height="100">
