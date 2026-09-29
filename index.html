@@ -36,6 +36,15 @@
                 border-bottom: 1px solid var(--borde); display: flex; align-items: center; justify-content: center; overflow: hidden; }
   #logoPerito img { width: 100%; height: 100%; object-fit: contain; padding: 4px 6px; }
 
+  /* mapa departamental: esquina inferior derecha, mismo estilo que los logos (250 px de ancho) */
+  .mapa-dep { width: 250px; background: var(--panel); border-left: 1px solid var(--borde); border-top: 1px solid var(--borde);
+              overflow: hidden; cursor: pointer; margin: 0 !important; }
+  .mapa-dep img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: contain; padding: 6px; }
+  .mapa-dep:hover img { filter: brightness(1.06); }
+  .leaflet-bottom.leaflet-right { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  .leaflet-bottom.leaflet-right .leaflet-control-zoom { margin: 0 10px 0 0; }
+  @media (max-width: 800px) { .mapa-dep { display: none; } }
+
   /* banner (50 px) + barra (50 px) = alto del logo (100 px) */
   #banner { grid-area: banner; position: relative; overflow: hidden; background: #fff; border-bottom: 1px solid var(--borde); }
   #banner img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center; }
@@ -282,8 +291,23 @@
 
   // ---------------- mapa
   var lienzo = L.canvas({ padding: 0.3, tolerance: 4 });
-  var mapa = L.map('mapa', { preferCanvas: true, renderer: lienzo, zoomSnap: 0.5, wheelPxPerZoomLevel: 90, zoomControl: false }).fitBounds(COLOMBIA);
-  L.control.zoom({ position: 'bottomright' }).addTo(mapa);
+  var mapa = L.map('mapa', { preferCanvas: true, renderer: lienzo, zoomSnap: 0.5, wheelPxPerZoomLevel: 90, zoomControl: false,
+                             attributionControl: false }).fitBounds(COLOMBIA);
+  L.control.attribution({ position: 'bottomleft', prefix: '<a href="https://leafletjs.com">Leaflet</a>' }).addTo(mapa);
+  // Mapa departamental (esquina inferior derecha); clic = volver a todo el departamento
+  var MapaDep = L.Control.extend({
+    options: { position: 'bottomright' },
+    onAdd: function () {
+      var div = L.DomUtil.create('div', 'mapa-dep');
+      div.title = 'Ver todo el departamento de Boyacá';
+      div.innerHTML = '<img src="img/mapa_departamental_web.png" alt="Mapa departamental de Boyacá" width="250" height="188">';
+      L.DomEvent.disableClickPropagation(div);
+      L.DomEvent.on(div, 'click', function () { ir('15'); });
+      return div;
+    }
+  });
+  new MapaDep().addTo(mapa);
+  L.control.zoom({ position: 'bottomright' }).addTo(mapa);   // queda encima del mapa departamental
   var calles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     { maxZoom: 20, maxNativeZoom: 19, attribution: '&copy; OpenStreetMap · Datos: IGAC' }).addTo(mapa);
   var satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
