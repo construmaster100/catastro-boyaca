@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cámara de Comercio</title>
+<link rel="icon" href="img/logo_web.png">
+<style>
+  :root {
+    --bg: #f5f4f0; --panel: #ffffff; --texto: #1f2328; --suave: #5d6470; --borde: #dcdad3;
+    --acento: #b4531f; --acento-suave: #f6e3d6; --nav: #1f2a36; --nav-texto: #f3f1ec;
+    --verde: #0f4d2e; --dorado: #b8860b; --serie: #2a78d6; --resalte: #eb6834; --neutro: #c3c2b7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16181c; --panel: #1f2227; --texto: #e7e7e4; --suave: #9aa0a8; --borde: #34383f;
+      --acento: #f08a4b; --acento-suave: #3a2a20; --nav: #0f1419; --nav-texto: #e7e7e4;
+      --verde: #7fd1a3; --serie: #3987e5; --resalte: #d95926; --neutro: #52514e;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16181c; --panel: #1f2227; --texto: #e7e7e4; --suave: #9aa0a8; --borde: #34383f;
+    --acento: #f08a4b; --acento-suave: #3a2a20; --nav: #0f1419; --nav-texto: #e7e7e4;
+    --verde: #7fd1a3; --serie: #3987e5; --resalte: #d95926; --neutro: #52514e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--texto); font: 13px/1.45 system-ui, "Segoe UI", Roboto, sans-serif;
+         display: grid; height: 100vh; overflow: hidden;
+         grid-template-columns: 250px 1fr 250px; grid-template-rows: 50px 50px 1fr;
+         grid-template-areas: "logo banner perito" "logo nav perito" "panel main lateral"; }
+  #logo, #logoPerito { width: 250px; height: 100px; background: var(--panel); display: flex; align-items: center; justify-content: center; }
+  #logo { grid-area: logo; border-right: 1px solid var(--borde); border-bottom: 1px solid var(--borde); cursor: pointer; }
+  #logoPerito { grid-area: perito; border-left: 1px solid var(--borde); border-bottom: 1px solid var(--borde); }
+  #logo img, #logoPerito img { width: 100%; height: 100%; object-fit: contain; padding: 4px 6px; }
+  #banner { grid-area: banner; background: linear-gradient(90deg, #fff8e6, #fdecc0 50%, #fff8e6); border-bottom: 2px solid var(--dorado);
+            display: flex; align-items: center; justify-content: center; gap: 10px; color: #6b4e00; font-weight: 700; font-size: 15px; }
+  #banner small { font-weight: 500; color: #8a6d1a; }
+  nav { grid-area: nav; background: var(--nav); color: var(--nav-texto); display: flex; align-items: center; gap: 12px; padding: 0 14px; min-width: 0; }
+  nav .volver { font: 600 12px system-ui, sans-serif; background: var(--verde); color: #fff; border: 0; border-radius: 6px;
+                padding: 6px 10px; cursor: pointer; white-space: nowrap; text-decoration: none; }
+  nav .ruta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .85; flex: 1; min-width: 0; }
+  nav .ruta b { opacity: 1; }
+  .pestanas { display: flex; gap: 4px; }
+  .pestanas button { font: 600 12px system-ui, sans-serif; color: var(--nav-texto); background: rgba(255,255,255,.08);
+                     border: 1px solid rgba(255,255,255,.2); border-radius: 6px; padding: 5px 10px; cursor: pointer; white-space: nowrap; }
+  .pestanas button[aria-selected="true"] { background: var(--dorado); border-color: var(--dorado); color: #fff; }
+  aside, #lateral { background: var(--panel); overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  aside { grid-area: panel; border-right: 1px solid var(--borde); }
+  #lateral { grid-area: lateral; border-left: 1px solid var(--borde); }
+  aside > *, #lateral > * { flex-shrink: 0; }
+  main { grid-area: main; overflow: auto; background: var(--bg); position: relative; }
+  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--suave); margin: 0 0 4px; }
+  input[type=search], select, input[type=number] { font: inherit; color: var(--texto); background: var(--bg); border: 1px solid var(--borde);
+                                                  border-radius: 6px; padding: 6px 8px; }
+  input[type=search] { width: 100%; }
+  /* catalogo de documentos */
+  #docs { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  #docs li { border: 1px solid var(--borde); border-radius: 8px; padding: 7px 9px; cursor: pointer; display: grid; gap: 1px; }
+  #docs li:hover { border-color: var(--dorado); }
+  #docs li.actual { border-color: var(--dorado); background: #fff8e6; }
+  :root[data-theme="dark"] #docs li.actual { background: #3a2f12; }
+  #docs li b { font-size: 12.5px; }
+  #docs li small { color: var(--suave); font-size: 11px; }
+  .chip { display: inline-block; font-size: 10px; font-weight: 700; padding: 0 6px; border-radius: 8px; color: #fff; background: #b4531f; margin-right: 4px; }
+  .chip.xls { background: #0f7a3a; }
+  #indice { list-style: none; margin: 0; padding: 0; font-size: 12px; }
+  #indice li { display: flex; justify-content: space-between; gap: 6px; padding: 3px 4px; border-bottom: 1px dashed var(--borde); cursor: pointer; }
+  #indice li:hover { background: var(--acento-suave); }
+  #indice li.n1 { padding-left: 14px; } #indice li.n2 { padding-left: 24px; color: var(--suave); }
+  #indice li span:last-child { color: var(--suave); font-variant-numeric: tabular-nums; }
+  /* vistas */
+  .vista { display: none; height: 100%; }
+  .vista.activa { display: flex; flex-direction: column; }
+  .barra { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; background: var(--panel);
+           border-bottom: 1px solid var(--borde); }
+  .barra .tit { font-weight: 700; font-size: 14px; flex: 1; min-width: 200px; }
+  .barra a, .barra button { font: 600 12px system-ui, sans-serif; color: var(--texto); background: var(--bg); border: 1px solid var(--borde);
+                            border-radius: 6px; padding: 5px 9px; cursor: pointer; text-decoration: none; }
+  #visorPdf { flex: 1; border: 0; width: 100%; background: #525659; }
+  .contenido { padding: 14px 18px; overflow: auto; flex: 1; }
+  /* tabla de datos */
+  table.datos { border-collapse: collapse; font-size: 12px; background: var(--panel); }
+  table.datos th, table.datos td { padding: 5px 8px; border-bottom: 1px solid var(--borde); white-space: nowrap; }
+  table.datos th { position: sticky; top: 0; background: var(--panel); cursor: pointer; text-align: left; font-size: 11px; color: var(--suave); }
+  table.datos td.n, table.datos th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  table.datos tbody tr:hover { background: var(--acento-suave); }
+  table.datos a { color: #1e3a8a; }
+  .tabla-caja { overflow: auto; flex: 1; }
+  /* graficos */
+  .grafico { background: var(--panel); border: 1px solid var(--borde); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+  .grafico h3 { margin: 0 0 2px; font-size: 14px; }
+  .grafico p.sub { margin: 0 0 8px; color: var(--suave); font-size: 12px; }
+  .grafico svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .grafico svg text { fill: var(--texto); font-size: 11px; font-family: system-ui, sans-serif; }
+  .grafico svg .eje { stroke: var(--borde); }
+  .grafico svg .muted { fill: var(--suave); }
+  .tip { position: fixed; z-index: 50; pointer-events: none; background: var(--panel); color: var(--texto); border: 1px solid var(--borde);
+         border-radius: 6px; padding: 5px 8px; font-size: 12px; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+  /* cifras */
+  .cifra { border: 1px solid var(--borde); border-radius: 8px; padding: 8px 10px; }
+  .cifra span { display: block; font-size: 11px; color: var(--suave); }
+  .cifra b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; color: var(--verde); line-height: 1.2; }
+  .cifra small { color: var(--suave); font-size: 11px; }
+  .enlaces a { display: block; color: #1e3a8a; font-weight: 600; font-size: 12px; margin: 3px 0; }
+  #analisis { background: var(--panel); border: 1px solid var(--borde); border-radius: 10px; padding: 8px 22px; max-width: 1100px; }
+  #analisis table { border-collapse: collapse; font-size: 12px; margin: 6px 0 14px; }
+  #analisis th, #analisis td { border: 1px solid var(--borde); padding: 4px 8px; text-align: left; }
+  #analisis h1 { font-size: 20px; } #analisis h2 { font-size: 15px; text-transform: none; letter-spacing: 0; color: var(--verde); margin-top: 18px; }
+  @media (max-width: 900px) {
+    body { overflow: auto; height: auto; grid-template-columns: 1fr; grid-template-rows: auto auto auto 70vh auto auto;
+           grid-template-areas: "banner" "nav" "panel" "main" "lateral" "logo"; }
+    #logo, #logoPerito { display: none; } nav { flex-wrap: wrap; padding: 6px; } .pestanas { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<div id="logo" title="Volver al catastro"><img src="img/logo_web.png" alt="Catastro Boyacá"></div>
+<header id="banner">🏛 Cámara de Comercio de Tunja · Boyacá en Cifras <small id="bannerSub"></small></header>
+<div id="logoPerito"><img src="img/logoperito_web.png" alt="Perito Catastral e Inmobiliario Juan Yamil López #01"></div>
+
+<nav>
+  <a class="volver" href="index.html" title="Volver al visor catastral">🗺 Catastro</a>
+  <div class="ruta">Colombia › Boyacá › <b>Estudios económicos</b></div>
+  <div class="pestanas" role="tablist">
+    <button role="tab" data-v="documentos" aria-selected="true">📄 Documentos</button>
+    <button role="tab" data-v="municipal" aria-selected="false">🏘 Datos municipales</button>
+    <button role="tab" data-v="departamental" aria-selected="false">📊 Comparativo departamental</button>
+    <button role="tab" data-v="analisis" aria-selected="false">🔎 Análisis</button>
+  </div>
+</nav>
+
+<aside>
+  <h2>Estudios publicados</h2>
+  <input id="filtroDocs" type="search" placeholder="Buscar por año o título…">
+  <ul id="docs"></ul>
+  <section id="bloqueIndice" hidden>
+    <h2 id="tituloIndice">Contenido</h2>
+    <ul id="indice"></ul>
+  </section>
+</aside>
+
+<main>
+  <section class="vista activa" id="v-documentos">
+    <div class="barra">
+      <span class="tit" id="docTitulo">Seleccione un estudio</span>
+      <label>Página <input id="irPagina" type="number" min="1" style="width:70px"></label>
+      <a id="docAbrir" target="_blank" rel="noopener">Abrir</a>
+      <a id="docDescargar" download>⬇ Descargar</a>
+      <a id="docOriginal" target="_blank" rel="noopener">Original en cctunja.org.co</a>
+    </div>
+    <iframe id="visorPdf" title="Documento"></iframe>
+  </section>
+
+  <section class="vista" id="v-municipal">
+    <div class="barra">
+      <span class="tit">Base municipal 2024 · 123 municipios</span>
+      <input id="filtroMun" type="search" placeholder="Municipio o provincia…" style="width:190px">
+      <select id="grupoMun"></select>
+      <button id="csvMun" type="button">⬇ CSV</button>
+    </div>
+    <div class="tabla-caja"><table class="datos"><thead><tr id="cabMun"></tr></thead><tbody id="cuerpoMun"></tbody></table></div>
+  </section>
+
+  <section class="vista" id="v-departamental">
+    <div class="barra">
+      <span class="tit">Boyacá frente a los demás departamentos</span>
+      <select id="indDep"></select>
+      <select id="anioDep"></select>
+    </div>
+    <div class="contenido">
+      <div class="grafico"><h3 id="gTitulo"></h3><p class="sub" id="gSub"></p><svg id="gBarras"></svg></div>
+      <div class="grafico"><h3 id="gTitulo2"></h3><p class="sub">Boyacá frente al total nacional, por año.</p><svg id="gLinea"></svg></div>
+    </div>
+  </section>
+
+  <section class="vista" id="v-analisis">
+    <div class="contenido"><div id="analisis">Cargando…</div></div>
+  </section>
+</main>
+
+<div id="lateral">
+  <h2>Boyacá en cifras <span id="anioCifras"></span></h2>
+  <div id="cifras" style="display:grid;gap:8px"></div>
+  <h2 style="margin-top:6px">Tableros y fuente</h2>
+  <div class="enlaces" id="enlaces"></div>
+  <h2 style="margin-top:6px">Sobre el estudio</h2>
+  <div id="descripcion" style="font-size:12px;color:var(--suave)"></div>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var BASE = 'camara/';
+  function fmt(n, d) { return n == null || n === '' || isNaN(n) ? '—' : Number(n).toLocaleString('es-CO', { maximumFractionDigits: d == null ? 1 : d, minimumFractionDigits: 0 }); }
+  function esc(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function sinTildes(t) { return String(t || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase(); }
+  var tip = $('tip');
+  function mostrarTip(e, html) { tip.innerHTML = html; tip.hidden = false; tip.style.left = (e.clientX + 12) + 'px'; tip.style.top = (e.clientY + 12) + 'px'; }
+  function ocultarTip() { tip.hidden = true; }
+  $('logo').addEventListener('click', function () { location.href = 'index.html'; });
+
+  // ---------------- pestanas
+  function verVista(v) {
+    document.querySelectorAll('.pestanas button').forEach(function (b) { b.setAttribute('aria-selected', String(b.dataset.v === v)); });
+    document.querySelectorAll('.vista').forEach(function (s) { s.classList.toggle('activa', s.id === 'v-' + v); });
+    history.replaceState(null, '', '#' + v);
+  }
+  document.querySelectorAll('.pestanas button').forEach(function (b) { b.addEventListener('click', function () { verVista(b.dataset.v); }); });
+
+  // ---------------- catalogo de documentos
+  var catalogo = null, docActual = null;
+  fetch(BASE + 'catalogo.json').then(function (r) { return r.json(); }).then(function (c) {
+    catalogo = c;
+    $('bannerSub').textContent = '· ' + c.documentos.length + ' documentos · consultado ' + c.consultado.split('-').reverse().join('/');
+    pintarDocs('');
+    var primero = c.documentos.filter(function (d) { return d.tipo === 'PDF'; })[0];
+    if (primero) abrirDoc(primero, 1);
+    $('enlaces').innerHTML = c.tableros.map(function (t, i) {
+      return '<a href="' + esc(t.url) + '" target="_blank" rel="noopener">📈 Tablero Power BI ' + (i + 1) + '</a>'; }).join('') +
+      '<a href="' + esc(c.pagina) + '" target="_blank" rel="noopener">🌐 Página de la Cámara de Comercio</a>';
+    $('descripcion').innerHTML = c.descripcion.slice(0, 3).map(function (p) { return '<p style="margin:0 0 6px">' + esc(p) + '</p>'; }).join('');
+  });
+  function pintarDocs(q) {
+    q = sinTildes(q);
+    $('docs').innerHTML = catalogo.documentos.map(function (d, i) {
+      if (q && sinTildes(d.titulo + ' ' + d.anio + ' ' + d.tipo).indexOf(q) === -1) return '';
+      return '<li data-i="' + i + '" class="' + (d === docActual ? 'actual' : '') + '"><b><span class="chip ' + (d.tipo === 'Excel' ? 'xls' : '') + '">' +
+             d.tipo + '</span>' + esc(d.titulo) + '</b><small>' + (d.paginas ? d.paginas + ' páginas · ' : '') + fmt(d.mb) + ' MB' +
+             (d.indice && d.indice.length ? ' · índice ' + d.indice.length : '') + '</small></li>';
+    }).join('');
+  }
+  $('filtroDocs').addEventListener('input', function () { pintarDocs(this.value); });
+  $('docs').addEventListener('click', function (e) {
+    var li = e.target.closest('li'); if (!li) return;
+    var d = catalogo.documentos[+li.dataset.i];
+    if (d.tipo === 'Excel') { verVista('municipal'); return; }
+    abrirDoc(d, 1); verVista('documentos');
+  });
+  function abrirDoc(d, pagina) {
+    docActual = d;
+    $('docTitulo').textContent = d.titulo + (d.paginas ? ' · ' + d.paginas + ' páginas' : '');
+    $('visorPdf').src = BASE + d.archivo + '#page=' + (pagina || 1);
+    $('docAbrir').href = BASE + d.archivo + '#page=' + (pagina || 1);
+    $('docDescargar').href = BASE + d.archivo;
+    $('docOriginal').href = d.url;
+    $('irPagina').max = d.paginas || '';
+    $('irPagina').value = pagina || 1;
+    $('bloqueIndice').hidden = !(d.indice && d.indice.length);
+    $('tituloIndice').textContent = 'Contenido · ' + d.titulo;
+    $('indice').innerHTML = (d.indice || []).map(function (e) {
+      return '<li class="n' + (e.n || 0) + '" data-p="' + e.p + '"><span>' + esc(e.t) + '</span><span>' + e.p + '</span></li>'; }).join('');
+    pintarDocs($('filtroDocs').value);
+  }
+  $('indice').addEventListener('click', function (e) { var li = e.target.closest('li'); if (li) irA(+li.dataset.p); });
+  function irA(p) {
+    if (!docActual) return;
+    $('visorPdf').src = BASE + docActual.archivo + '#page=' + p;    // cambiar el #page recarga el visor en esa pagina
+    $('docAbrir').href = BASE + docActual.archivo + '#page=' + p;
+    $('irPagina').value = p;
+  }
+  $('irPagina').addEventListener('change', function () { var p = Math.max(1, +this.value || 1); irA(p); });
+
+  // ---------------- datos municipales
+  var mun = null, ordenMun = { i: 1, asc: true };
+  var ETIQ = { 'Código': 'Código', 'Municipio': 'Municipio', 'Provincia': 'Provincia', VA_2024: 'Valor agregado (mil mill. $)',
+    Mat_2024: 'Matrículas', Ren_2024: 'Renovaciones', Can_2024: 'Cancelaciones', Comf_Empresas: 'Empresas COMFABOY',
+    Comf_Empleos: 'Empleos COMFABOY', N_Total: 'Población', N_Hombres: 'Hombres', N_Mujeres: 'Mujeres',
+    Fin_Captaciones: 'Captaciones (mill. $)', Fin_Colocaciones: 'Colocaciones (mill. $)', Fin_FINAGRO: 'FINAGRO (mill. $)',
+    Fin_BANCOLDEX: 'BANCOLDEX (mill. $)', ICM: 'Puesto ICM 2023', 'Prod(ton)_2023': 'Producción agrícola (t)',
+    Bovino_2024: 'Bovinos', ICFES_2024: 'ICFES', IPS_2024: 'IPS', Camas_2024: 'Camas', Acueductos_2024: 'Acueductos',
+    Riesgo_2024: 'Riesgo agua (IRCA)', Eventos_2024: 'Eventos de riesgo' };
+  fetch(BASE + 'basemun.json').then(function (r) { return r.json(); }).then(function (j) {
+    mun = j;
+    var grupos = [];
+    j.columnas.forEach(function (c) { if (c.grupo && grupos.indexOf(c.grupo) === -1 && ['Código', 'Municipio', 'Provincia'].indexOf(c.grupo) === -1) grupos.push(c.grupo); });
+    $('grupoMun').innerHTML = '<option value="">Todas las variables</option>' + grupos.map(function (g) { return '<option>' + esc(g) + '</option>'; }).join('');
+    ordenMun = { i: j.columnas.findIndex(function (c) { return c.k === 'VA_2024'; }), asc: false };
+    pintarMun();
+  });
+  function columnasVisibles() {
+    var g = $('grupoMun').value;
+    return mun.columnas.map(function (c, i) { return i; }).filter(function (i) {
+      var c = mun.columnas[i]; return i <= 2 || !g || c.grupo === g; });
+  }
+  function pintarMun() {
+    var cols = columnasVisibles(), q = sinTildes($('filtroMun').value);
+    var filas = mun.filas.filter(function (f) { return f[2] !== 'Departamento' && (!q || sinTildes(f[1] + ' ' + f[2]).indexOf(q) !== -1); });
+    filas.sort(function (a, b) {
+      var x = a[ordenMun.i], y = b[ordenMun.i];
+      var r = typeof x === 'number' && typeof y === 'number' ? x - y : String(x || '').localeCompare(String(y || ''), 'es');
+      return ordenMun.asc ? r : -r;
+    });
+    $('cabMun').innerHTML = cols.map(function (i) {
+      var c = mun.columnas[i], num = i > 2 && c.k !== 'Riesgo_2024';
+      return '<th data-i="' + i + '" class="' + (num ? 'n' : '') + '">' + esc(ETIQ[c.k] || c.k) + (ordenMun.i === i ? (ordenMun.asc ? ' ▲' : ' ▼') : '') + '</th>'; }).join('');
+    $('cuerpoMun').innerHTML = filas.map(function (f) {
+      var cod = String(f[0]).slice(0, 5);
+      return '<tr>' + cols.map(function (i) {
+        var v = f[i];
+        if (i === 0) return '<td>' + cod + '</td>';
+        if (i === 1) return '<td><a href="index.html#' + cod + '" title="Ver en el visor catastral">' + esc(v) + '</a></td>';
+        if (i === 2 || typeof v !== 'number') return '<td>' + esc(v == null ? '—' : v) + '</td>';
+        return '<td class="n">' + fmt(v, Math.abs(v) < 100 && v % 1 ? 2 : 0) + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+  }
+  $('cabMun').addEventListener('click', function (e) {
+    var th = e.target.closest('th'); if (!th) return;
+    var i = +th.dataset.i; ordenMun = { i: i, asc: ordenMun.i === i ? !ordenMun.asc : i <= 2 };
+    pintarMun();
+  });
+  $('filtroMun').addEventListener('input', pintarMun);
+  $('grupoMun').addEventListener('change', pintarMun);
+  $('csvMun').addEventListener('click', function () {
+    var cols = columnasVisibles();
+    var lineas = [cols.map(function (i) { return ETIQ[mun.columnas[i].k] || mun.columnas[i].k; }).join(';')].concat(
+      mun.filas.map(function (f) { return cols.map(function (i) { return String(f[i] == null ? '' : f[i]).replace('.', ','); }).join(';'); }));
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + lineas.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'boyaca_en_cifras_2024_municipios.csv'; a.click();
+  });
+
+  // ---------------- comparativo departamental
+  var dep = null;
+  var INDICADORES = {
+    PIB: { t: 'PIB', u: 'miles de millones $', d: 0 }, PIBpc: { t: 'PIB por habitante', u: '$', d: 0 },
+    TD: { t: 'Tasa de desempleo', u: '%', d: 1, menor: true }, 'PbM$': { t: 'Pobreza monetaria', u: '%', d: 1, menor: true },
+    Gini: { t: 'Coeficiente de Gini', u: '(0 = igualdad)', d: 3, menor: true },
+    PbMd: { t: 'Pobreza multidimensional', u: '%', d: 1, menor: true },
+    ICD: { t: 'Puesto en competitividad departamental', u: 'puesto (1 = mejor)', d: 0, menor: true },
+    N: { t: 'Población', u: 'habitantes', d: 0 }
+  };
+  // Valores nacionales inconsistentes en la fuente (Excel CCT 2024): PbMd Colombia ~40 % (mayor que Choco) e ICD con puesto 57.
+  var SIN_NACIONAL = { PbMd: 'El valor nacional de la fuente (~40 %) es inconsistente con los departamentos; no se muestra.', ICD: 'Ranking entre departamentos: no aplica valor nacional.' };
+  function corto(n) { return n.indexOf('San Andr') === 0 ? 'San Andrés y Providencia' : n; }
+  fetch(BASE + 'baseboy.json').then(function (r) { return r.json(); }).then(function (j) {
+    dep = j;
+    var ind = {};
+    j.columnas.forEach(function (c) { var m = c.match(/^(.*)_(\d{4})$/); if (m) (ind[m[1]] = ind[m[1]] || []).push(m[2]); });
+    dep.ind = ind;
+    $('indDep').innerHTML = Object.keys(ind).map(function (k) {
+      return '<option value="' + esc(k) + '">' + esc((INDICADORES[k] || { t: k }).t) + '</option>'; }).join('');
+    $('indDep').value = 'PIBpc';
+    llenarAnios(); pintarDep(); pintarCifras();
+  });
+  function llenarAnios() {
+    var anios = dep.ind[$('indDep').value].slice().reverse();
+    $('anioDep').innerHTML = anios.map(function (a) { return '<option>' + a + '</option>'; }).join('');
+  }
+  $('indDep').addEventListener('change', function () { llenarAnios(); pintarDep(); });
+  $('anioDep').addEventListener('change', pintarDep);
+
+  function pintarDep() {
+    var k = $('indDep').value, anio = $('anioDep').value, info = INDICADORES[k] || { t: k, u: '', d: 1 };
+    var col = k + '_' + anio;
+    var filas = Object.keys(dep.departamentos).filter(function (n) { return n !== 'Colombia'; })
+      .map(function (n) { return { n: n, v: dep.departamentos[n][col] }; })
+      .filter(function (f) { return typeof f.v === 'number'; })
+      .sort(function (a, b) { return info.menor ? a.v - b.v : b.v - a.v; });
+    var nal = SIN_NACIONAL[k] ? null : dep.departamentos.Colombia && dep.departamentos.Colombia[col];
+    var pos = filas.findIndex(function (f) { return f.n === 'Boyacá'; }) + 1;
+    $('gTitulo').textContent = info.t + ' ' + anio;
+    $('gSub').textContent = (info.u ? 'Unidad: ' + info.u + '. ' : '') + 'Boyacá ocupa el puesto ' + pos + ' de ' + filas.length +
+      (info.menor ? ' (ordenado de menor a mayor: menor es mejor).' : ' (de mayor a menor).') +
+      (typeof nal === 'number' && k !== 'PIB' && k !== 'N' ? ' Línea: total nacional (' + fmt(nal, info.d) + ').' : '') + (SIN_NACIONAL[k] ? ' ' + SIN_NACIONAL[k] : '');
+    // barras horizontales, un solo tono; Boyaca resaltado
+    var W = 900, fila = 17, izq = 150, der = 70, H = filas.length * fila + 24;
+    var max = Math.max.apply(0, filas.map(function (f) { return f.v; }).concat(typeof nal === 'number' && k !== 'PIB' && k !== 'N' ? [nal] : []));
+    var esc_ = function (v) { return (W - izq - der) * v / max; };
+    var s = '';
+    filas.forEach(function (f, i) {
+      var y = 4 + i * fila, w = Math.max(1, esc_(f.v)), boy = f.n === 'Boyacá';
+      s += '<text x="' + (izq - 6) + '" y="' + (y + 12) + '" text-anchor="end" font-weight="' + (boy ? 700 : 400) + '">' + esc(corto(f.n)) + '</text>' +
+           '<rect x="' + izq + '" y="' + (y + 2) + '" width="' + w.toFixed(1) + '" height="' + (fila - 5) + '" rx="3" fill="var(' + (boy ? '--resalte' : '--serie') + ')" ' +
+           'data-n="' + esc(f.n) + '" data-v="' + f.v + '" opacity="' + (boy ? 1 : 0.85) + '"></rect>' +
+           (boy || i < 3 || i >= filas.length - 1 ? '<text x="' + (izq + w + 4) + '" y="' + (y + 12) + '" class="muted">' + fmt(f.v, info.d) + '</text>' : '');
+    });
+    if (typeof nal === 'number' && k !== 'PIB' && k !== 'N') {
+      var x = izq + esc_(nal);
+      s += '<line x1="' + x + '" x2="' + x + '" y1="0" y2="' + (H - 18) + '" stroke="var(--texto)" stroke-dasharray="4 3" stroke-width="1.2"/>' +
+           '<text x="' + x + '" y="' + (H - 4) + '" text-anchor="middle" class="muted">Colombia ' + fmt(nal, info.d) + '</text>';
+    }
+    var svg = $('gBarras');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.innerHTML = s;
+    pintarLinea(k, info);
+  }
+  $('gBarras').addEventListener('mousemove', function (e) {
+    var r = e.target.closest && e.target.closest('rect');
+    if (!r) return ocultarTip();
+    var k = $('indDep').value, info = INDICADORES[k] || { d: 1, u: '' };
+    mostrarTip(e, '<b>' + esc(r.dataset.n) + '</b><br>' + fmt(+r.dataset.v, info.d) + ' ' + esc(info.u));
+  });
+  $('gBarras').addEventListener('mouseleave', ocultarTip);
+
+  function pintarLinea(k, info) {
+    var anios = dep.ind[k], boy = dep.departamentos['Boyacá'], nal = dep.departamentos.Colombia;
+    var mostrarNal = nal && k !== 'PIB' && k !== 'N' && !SIN_NACIONAL[k];
+    $('gTitulo2').textContent = info.t + ': evolución ' + anios[0] + '–' + anios[anios.length - 1];
+    var serie = function (d) { return anios.map(function (a) { return d && typeof d[k + '_' + a] === 'number' ? d[k + '_' + a] : null; }); };
+    var sb = serie(boy), sn = mostrarNal ? serie(nal) : [];
+    var vals = sb.concat(sn).filter(function (v) { return v != null; });
+    var min = Math.min.apply(0, vals), max = Math.max.apply(0, vals), pad = (max - min) * 0.15 || 1;
+    min -= pad; max += pad;
+    var W = 900, H = 230, L = 60, R = 110, T = 12, B = 28;
+    var X = function (i) { return L + (W - L - R) * (anios.length === 1 ? 0.5 : i / (anios.length - 1)); };
+    var Y = function (v) { return T + (H - T - B) * (1 - (v - min) / (max - min)); };
+    var s = '';
+    for (var g = 0; g <= 4; g++) {
+      var v = min + (max - min) * g / 4, y = Y(v);
+      s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '" class="eje" stroke-width="1"/>' +
+           '<text x="' + (L - 6) + '" y="' + (y + 4) + '" text-anchor="end" class="muted">' + fmt(v, info.d > 1 ? info.d : 0) + '</text>';
+    }
+    anios.forEach(function (a, i) { s += '<text x="' + X(i) + '" y="' + (H - 8) + '" text-anchor="middle" class="muted">' + a + '</text>'; });
+    function linea(ser, color, nombre) {
+      var pts = ser.map(function (v, i) { return v == null ? null : [X(i), Y(v)]; }).filter(Boolean);
+      if (!pts.length) return '';
+      var out = '<polyline fill="none" stroke="' + color + '" stroke-width="2" points="' + pts.map(function (p) { return p.join(','); }).join(' ') + '"/>';
+      ser.forEach(function (v, i) { if (v != null) out += '<circle cx="' + X(i) + '" cy="' + Y(v) + '" r="4" fill="' + color + '" stroke="var(--panel)" stroke-width="2" data-t="' + esc(nombre + ' ' + anios[i] + ': ' + fmt(v, info.d) + ' ' + info.u) + '"/>'; });
+      var ult = pts[pts.length - 1];
+      return out + '<text x="' + (ult[0] + 8) + '" y="' + (ult[1] + 4) + '" font-weight="600">' + nombre + '</text>';
+    }
+    s += linea(sb, 'var(--resalte)', 'Boyacá');
+    if (mostrarNal) s += linea(sn, 'var(--serie)', 'Colombia');
+    var svg = $('gLinea'); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.innerHTML = s;
+  }
+  $('gLinea').addEventListener('mousemove', function (e) { var c = e.target.dataset && e.target.dataset.t; if (c) mostrarTip(e, esc(c)); else ocultarTip(); });
+  $('gLinea').addEventListener('mouseleave', ocultarTip);
+
+  // ---------------- cifras clave de Boyaca (ultimo ano disponible de cada indicador)
+  function pintarCifras() {
+    var b = dep.departamentos['Boyacá'], n = dep.departamentos.Colombia, html = '';
+    ['N', 'PIB', 'PIBpc', 'TD', 'PbM$', 'PbMd', 'Gini', 'ICD'].forEach(function (k) {
+      if (!dep.ind[k]) return;
+      var anio = dep.ind[k].filter(function (a) { return typeof b[k + '_' + a] === 'number'; }).pop();
+      if (!anio) return;
+      var info = INDICADORES[k], v = b[k + '_' + anio], vn = n && n[k + '_' + anio];
+      html += '<div class="cifra"><span>' + info.t + ' · ' + anio + '</span><b>' + (k === 'PIBpc' ? '$ ' : '') + fmt(v, info.d) +
+              (info.u === '%' ? ' %' : '') + '</b><small>' + (info.u !== '%' ? esc(info.u) : '') +
+              (typeof vn === 'number' && k !== 'PIB' && k !== 'N' && !SIN_NACIONAL[k] ? (info.u !== '%' ? ' · ' : '') + 'Colombia: ' + fmt(vn, info.d) + (info.u === '%' ? ' %' : '') : '') +
+              '</small></div>';
+    });
+    $('cifras').innerHTML = html;
+  }
+
+  // ---------------- analisis
+  fetch(BASE + 'analisis.html').then(function (r) { return r.ok ? r.text() : 'No se encontró el análisis (ejecute analisis_cct.py y scraper_cct.py).'; })
+    .then(function (h) { $('analisis').innerHTML = h; });
+
+  var inicial = location.hash.slice(1);
+  if (['documentos', 'municipal', 'departamental', 'analisis'].indexOf(inicial) !== -1) verVista(inicial);
+})();
+</script>
+</body>
+</html>

@@ -733,3 +733,29 @@ recomendada en `.vscode/extensions.json`. `python exportar_geo.py` genera en `ge
 **Imagen ilustrada del departamento:** `georreferenciar_mapa.py` hace un ajuste afín completo (6 parámetros) que
 maximiza la coincidencia pixel a pixel con el límite oficial (89,4 %; el resto son diferencias propias del dibujo),
 remuestrea la imagen a la grilla del mapa y la recorta con el límite oficial para que su borde coincida exactamente.
+
+---
+
+## 19. Repositorio «Cámara de Comercio» (scraping de Boyacá en Cifras)
+
+`python scraper_cct.py` descarga **todo** lo publicado en <https://cctunja.org.co/estudios-economicos/boyaca-en-cifras/>
+a `visor/camara/` (solo lo que falta):
+
+| Contenido | Detalle |
+|---|---|
+| `camara/archivos/` | 12 documentos (108 MB): ediciones 2015–2024 (PDF), infografía 2019-2020, informe de auditoría y la herramienta Excel 2024 |
+| `camara/catalogo.json` | Título, año, tipo, páginas, tamaño e **índice de contenido** de cada PDF (cuando el PDF lo permite), tableros Power BI y textos de la página |
+| `camara/basemun.json` | Base municipal 2024 (123 municipios × 51 variables) |
+| `camara/baseboy.json` | Comparativo de los 33 departamentos y Colombia 2020–2024 (PIB, PIB per cápita, desempleo, pobreza monetaria y multidimensional, Gini, competitividad, población) |
+| `camara/hojas/` | Las 9 hojas del Excel, fila por fila |
+| `camara/analisis.html` | Informe de `analisis_cct.py` |
+
+**Interfaz:** botón **🏛 Cámara de Comercio** en la barra del visor (antes de «Colombia») → `camara.html`, con el mismo
+diseño: pestañas **Documentos** (visor de PDF con índice y salto a página), **Datos municipales** (tabla ordenable y
+filtrable, CSV, enlace de cada municipio al visor catastral), **Comparativo departamental** (Boyacá resaltado frente a
+los demás departamentos y evolución frente a Colombia) y **Análisis**. Panel derecho: cifras clave de Boyacá y enlaces a
+los tableros Power BI. Botón **🗺 Catastro** para volver.
+
+**Inconsistencias de la fuente detectadas:** la fila «Colombia» trae pobreza multidimensional ≈ 40 % (mayor que Chocó,
+33,9 %; mediana departamental 13,4 %) y un «puesto» de competitividad 57; en esos dos indicadores la interfaz no muestra
+la referencia nacional y lo explica.
