@@ -66,8 +66,10 @@
   #itemsMun code { color: var(--acento); font-size: 11px; }
   #itemsMun small { color: var(--suave); font-size: 10.5px; font-variant-numeric: tabular-nums; }
   #itemsMun .vacio { color: var(--suave); cursor: default; display: block; }
-  #btnJerarquia { width: 100%; margin-top: 8px; font: 600 12px system-ui, sans-serif; padding: 6px 8px; border-radius: 6px;
-                  border: 0; cursor: pointer; background: #0f4d2e; color: #fff; }
+  #listaMun .cabeza h2 { align-items: center; gap: 6px; }
+  #listaMun .cabeza h2 #cuentaMun { margin-right: auto; }
+  #btnJerarquia { font: 600 11px system-ui, sans-serif; padding: 4px 8px; border-radius: 6px; text-transform: none;
+                  letter-spacing: 0; border: 0; cursor: pointer; background: #0f4d2e; color: #fff; }
   #btnJerarquia:hover { background: #166b40; }
 
   /* resumen de areas del municipio */
@@ -164,7 +166,8 @@
               padding: 6px 8px 8px; cursor: pointer; position: sticky; bottom: 0; box-shadow: 0 -6px 12px var(--panel); }
   .mapa-dep h2 { margin-bottom: 3px; }
   .mapa-dep:hover { border-color: #0f4d2e; }
-  .mapa-dep .marco { position: relative; aspect-ratio: 1200 / 995; width: 62%; margin: 0 auto; }
+  .mapa-dep .marco { position: relative; aspect-ratio: 1600 / 1466; width: 58%; margin: 0 auto; }
+  .leaflet-image-layer { transition: opacity .8s ease; }
   .mapa-dep img { display: block; width: 100%; height: 100%; }
   .mapa-dep:hover img { filter: brightness(1.06); }
   .mapa-dep .vista { position: absolute; border: 2px solid #d11f5a; background: rgba(209,31,90,.15); pointer-events: none;
@@ -368,14 +371,14 @@
 
 <section id="listaMun" aria-label="Municipios">
   <div class="cabeza">
-    <h2>Municipios <span id="cuentaMun"></span></h2>
+    <h2>Municipios <span id="cuentaMun"></span>
+      <button id="btnJerarquia" type="button" title="Jerarquía urbana y áreas de los 123 municipios">📊 Jerarquía</button></h2>
     <div class="campo-mun">
       <input id="filtroMun" type="text" autocomplete="off" placeholder="Buscar municipio o código…"
              role="combobox" aria-expanded="false" aria-controls="itemsMun">
       <button id="quitarMun" type="button" title="Quitar el municipio (volver a todo Boyacá) · Esc" hidden>✕</button>
     </div>
     <ul id="itemsMun" role="listbox" hidden></ul>
-    <button id="btnJerarquia" type="button">📊 Jerarquía urbana y áreas</button>
   </div>
   <div class="cuerpo-der" id="cuerpoDer">
     <p class="ayuda-der" id="ayudaDer">Escriba el nombre o el código DANE del municipio y elíjalo de la lista (↑ ↓ y Enter).</p>
@@ -439,14 +442,16 @@
   $('mapaDep').addEventListener('click', function () { ir('15'); });
 
   // Imagen del departamento georreferenciada (coincide con el limite oficial): capa raster sobre el mapa
-  var RASTER = { imagen: 'img/mapa_departamental_raster.png', limites: [[4.638312, -74.651678], [6.99176, -71.995337]] };
+  // ajuste afin + recorte con el limite oficial (georreferenciar_mapa.py; datos/mapa_departamental.json)
+  var RASTER = { imagen: 'img/mapa_departamental_raster.png', limites: [[4.592064, -74.671119], [7.059849, -71.964129]] };
   mapa.createPane('raster').style.zIndex = 250;                      // encima del mapa base, debajo de predios
   mapa.getPane('raster').style.pointerEvents = 'none';
   var capaRaster = L.imageOverlay(RASTER.imagen, RASTER.limites, { pane: 'raster', opacity: 0.85, interactive: false });
   var rasterActivo = true;
   function opacidadRaster() {
     var z = mapa.getZoom();
-    capaRaster.setOpacity(z < 9.5 ? 0.85 : z < 10.5 ? 0.3 : 0);
+    // desvanecimiento gradual (con transicion CSS) para que el cambio del mapa no sea brusco
+    capaRaster.setOpacity(z < 9 ? 0.85 : z < 10 ? 0.6 : z < 11 ? 0.35 : z < 12 ? 0.12 : 0);
   }
   capaRaster.addTo(mapa);
   mapa.on('zoomend', opacidadRaster);
@@ -1686,7 +1691,7 @@
     var lista = dep ? dep.municipios : Object.keys(muns).map(function (k) { return muns[k]; });
     lista.filter(function (m) { return m.bbox; }).forEach(function (m) {
       var actual = mun && m.codigo === mun.codigo;
-      var estilo = { renderer: lienzo, color: css('--acento'), weight: actual ? 2.5 : 1,
+      var estilo = { renderer: lienzo, color: css('--acento'), weight: actual ? 3.5 : 2, opacity: 0.95,
                      dashArray: actual || limites[m.codigo] ? null : '4 4',
                      fillOpacity: soloContorno ? 0 : 0.1, interactive: !actual };
       var capa = limites[m.codigo] ? L.geoJSON(limites[m.codigo], { style: estilo, interactive: !actual, renderer: lienzo })

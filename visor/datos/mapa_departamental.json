@@ -2,13 +2,18 @@
   "imagen": "img/mapa_departamental_raster.png",
   "limites": [
     [
-      4.638312,
-      -74.651678
+      4.592064,
+      -74.671119
     ],
     [
-      6.99176,
-      -71.995337
+      7.059849,
+      -71.964129
     ]
   ],
-  "coincidencia": 0.883
+  "tamano": [
+    1600,
+    1466
+  ],
+  "coincidencia": 0.8942,
+  "rotacion_grados": 0.027
 }

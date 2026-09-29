@@ -710,3 +710,26 @@ Página: <https://cctunja.org.co/estudios-economicos/boyaca-en-cifras/> (Cámara
   agropecuario. Resultado: 209.059 urbanos, 15.314 vivienda rural, 531.794 agropecuarios (2,26 millones de ha).
   El valor agregado y las empresas siguen a los predios urbanos (Pearson 0,91 y 0,97); la producción agrícola en
   toneladas **no** sigue al área agropecuaria (≈ 0), porque se concentra en cultivos intensivos de municipios pequeños.
+
+---
+
+## 18. Capas para Geo Data Viewer (VS Code)
+
+La extensión **Geo Data Viewer** (`randomfractalsinc.geo-data-viewer`, basada en kepler.gl) está instalada y
+recomendada en `.vscode/extensions.json`. `python exportar_geo.py` genera en `geo/`:
+
+| Archivo | Contenido |
+|---|---|
+| `boyaca_municipios.geojson` | 123 municipios (límite oficial) con áreas, % urbano/rural, % de Boyacá, jerarquía urbana, indicadores CCT 2024 (población, densidad, valor agregado, empresas, ICFES, salud, IRCA…) y uso del suelo de sus predios |
+| `boyaca_municipios_puntos.csv` | Lo mismo como puntos (centro de cada municipio), para mapas de calor o burbujas |
+| `boyaca_provincias.geojson` | 13 provincias con totales (población, área, valor agregado, predios) |
+| `boyaca_zonas_urbanas.geojson` | Cabeceras y centros poblados |
+| `boyaca_contorno.geojson` | Contorno del departamento |
+
+**Abrir:** en el explorador de VS Code, clic derecho sobre el archivo → **Geo: View Map** (o `Ctrl+Shift+P` →
+"Geo: View Map"). En kepler.gl se puede colorear por cualquier columna (p. ej. `densidad_hab_km2`,
+`valor_agregado`, `riesgo_agua`, `categoria_urbana`) y filtrar por provincia.
+
+**Imagen ilustrada del departamento:** `georreferenciar_mapa.py` hace un ajuste afín completo (6 parámetros) que
+maximiza la coincidencia pixel a pixel con el límite oficial (89,4 %; el resto son diferencias propias del dibujo),
+remuestrea la imagen a la grilla del mapa y la recorta con el límite oficial para que su borde coincida exactamente.
