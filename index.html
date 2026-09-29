@@ -28,8 +28,21 @@
   html, body { margin: 0; height: 100%; }
   body { background: var(--bg); color: var(--texto); font: 13px/1.45 system-ui, "Segoe UI", Roboto, sans-serif;
          display: grid; height: 100vh; overflow: hidden;
-         grid-template-columns: 250px 1fr; grid-template-rows: 60px 40px 1fr;
-         grid-template-areas: "logo nav" "logo mapa" "panel mapa"; }
+         grid-template-columns: 250px 1fr; grid-template-rows: var(--alto-banner) 60px 40px 1fr;
+         grid-template-areas: "banner banner" "logo nav" "logo mapa" "panel mapa"; }
+  :root { --alto-banner: 150px; }
+  body.sin-banner { --alto-banner: 0px; }
+
+  /* banner superior */
+  #banner { grid-area: banner; position: relative; overflow: hidden; background: #0f4d2e; }
+  #banner .fondo { position: absolute; inset: -20px; background: url(img/banner_web.jpg) center / cover no-repeat;
+                   filter: blur(14px) saturate(1.1); opacity: .9; }
+  #banner img { position: relative; display: block; height: 100%; width: auto; max-width: 100%; margin: 0 auto;
+                object-fit: contain; box-shadow: 0 0 30px rgba(0,0,0,.35); }
+  body.sin-banner #banner img, body.sin-banner #banner .fondo { display: none; }
+  #toggleBanner { position: fixed; top: calc(var(--alto-banner) + 2px); right: 10px; z-index: 1200; font: 600 11px system-ui, sans-serif;
+                  background: rgba(15,77,46,.92); color: #fff; border: 0; border-radius: 0 0 6px 6px; padding: 3px 9px; cursor: pointer; }
+  body:not(.sin-banner) #toggleBanner { top: calc(var(--alto-banner) - 22px); border-radius: 6px 6px 0 0; }
 
   /* logo 250x100 */
   #logo { grid-area: logo; width: 250px; height: 100px; background: var(--panel); border-right: 1px solid var(--borde);
@@ -154,8 +167,9 @@
   .control-grilla .dato { color: var(--suave); margin-top: 2px; font-family: ui-monospace, Consolas, monospace; }
 
   @media (max-width: 800px) {
-    body { overflow: auto; height: auto; grid-template-columns: 60px 1fr; grid-template-rows: 60px 60vh auto;
-           grid-template-areas: "logo nav" "mapa mapa" "panel panel"; }
+    :root { --alto-banner: 90px; }
+    body { overflow: auto; height: auto; grid-template-columns: 60px 1fr; grid-template-rows: var(--alto-banner) 60px 60vh auto;
+           grid-template-areas: "banner banner" "logo nav" "mapa mapa" "panel panel"; }
     #logo { width: 60px; height: 60px; }
     #logo .marcador { width: 50px; height: 50px; border-width: 1px; }
     #logo .marcador b { font-size: 10px; } #logo .marcador small { display: none; }
@@ -190,6 +204,9 @@
     </div>
   </div>
 </div>
+
+<header id="banner"><div class="fondo"></div><img src="img/banner_web.jpg" alt="Catastro Boyacá"></header>
+<button id="toggleBanner" type="button">▲ Ocultar banner</button>
 
 <div id="logo" title="Ver portada">
   <img src="img/logo_web.png" alt="Catastro Boyacá" width="250" height="100">
@@ -524,7 +541,7 @@
   function pintarVista() {
     var z = mapa.getZoom(), v = mapa.getBounds().pad(0.1);
     // Nombres y codigos de municipio: solo mientras no se esta a nivel de manzana
-    if (z < ZOOM_MANZANAS) { if (!mapa.hasLayer(capaNombres)) capaNombres.addTo(mapa); }
+    if (z < ZOOM_MANZANAS) { if (!mapa.hasLayer(capaNombres)) capaNombres.addTo(mapa); pintarNombres(); }
     else if (mapa.hasLayer(capaNombres)) mapa.removeLayer(capaNombres);
 
     var enVista = z >= ZOOM_REGIONES ? municipiosEnVista()
@@ -579,15 +596,32 @@
   }
   mapa.on('moveend', actualizarVista);
 
+  // Etiquetas de municipio: se calculan los centros una vez y se dibujan solo las que no se enciman
+  var centrosMun = [];
   function crearNombresMunicipios() {
+    centrosMun = Object.keys(muns).map(function (k) { return muns[k]; }).filter(function (m) { return m.bbox; })
+      .map(function (m) {
+        var c = limites[m.codigo] ? L.geoJSON(limites[m.codigo]).getBounds().getCenter()
+                                  : L.latLng((m.bbox[1] + m.bbox[3]) / 2, (m.bbox[0] + m.bbox[2]) / 2);
+        return { m: m, c: c, peso: m.urbanos + m.rurales, capital: m.codigo.slice(2) === '001' };
+      })
+      // prioridad: la capital del departamento y luego los municipios con mas predios
+      .sort(function (a, b) { return (b.capital - a.capital) || (b.peso - a.peso); });
+  }
+  function pintarNombres() {
     capaNombres.clearLayers();
-    Object.keys(muns).forEach(function (k) {
-      var m = muns[k];
-      if (!m.bbox) return;
-      var c = limites[m.codigo] ? L.geoJSON(limites[m.codigo]).getBounds().getCenter()
-                                : L.latLng((m.bbox[1] + m.bbox[3]) / 2, (m.bbox[0] + m.bbox[2]) / 2);
-      capaNombres.addLayer(etiqueta(c.lat, c.lng, 'mun', '<b>' + m.codigo + '</b>' + titulo(m.nombre),
-        titulo(m.nombre) + ' · ' + fmt(m.urbanos + m.rurales, 0) + ' predios', m.codigo));
+    var v = mapa.getBounds(), ocupados = [];
+    var W = 96, H = 34;                                     // tamano aproximado de la etiqueta en pixeles
+    centrosMun.forEach(function (it) {
+      if (!v.contains(it.c)) return;
+      var p = mapa.latLngToContainerPoint(it.c);
+      var caja = [p.x - W / 2, p.y - H / 2, p.x + W / 2, p.y + H / 2];
+      var choca = ocupados.some(function (o) { return caja[0] < o[2] && caja[2] > o[0] && caja[1] < o[3] && caja[3] > o[1]; });
+      if (choca) return;
+      ocupados.push(caja);
+      var m = it.m;
+      capaNombres.addLayer(etiqueta(it.c.lat, it.c.lng, 'mun', '<b>' + m.codigo + '</b>' + titulo(m.nombre),
+        titulo(m.nombre) + ' · ' + fmt(it.peso, 0) + ' predios', m.codigo));
     });
   }
 
@@ -952,6 +986,21 @@
   $('noPortada').addEventListener('change', function () { guardarPref(this.checked); });
   $('portada').addEventListener('click', function (e) { if (e.target === this) cerrarPortada(); });
   $('logo').addEventListener('click', mostrarPortada);
+  // Banner superior: se puede ocultar para ganar espacio (se recuerda la eleccion)
+  function aplicarBanner(oculto) {
+    document.body.classList.toggle('sin-banner', oculto);
+    $('toggleBanner').textContent = oculto ? '▼ Mostrar banner' : '▲ Ocultar banner';
+    setTimeout(function () { mapa.invalidateSize(); actualizarVista(); dibujarGrilla(); }, 60);
+  }
+  var bannerOculto = false;
+  try { bannerOculto = localStorage.getItem('ocultarBanner') === '1'; } catch (e) {}
+  aplicarBanner(bannerOculto);
+  $('toggleBanner').addEventListener('click', function () {
+    bannerOculto = !bannerOculto;
+    try { localStorage.setItem('ocultarBanner', bannerOculto ? '1' : '0'); } catch (e) {}
+    aplicarBanner(bannerOculto);
+  });
+
   // Se muestra al abrir, salvo que el enlace ya traiga un codigo o el usuario la haya ocultado
   if (!location.hash && !fichaDirecta && !leerPref()) mostrarPortada();
 
