@@ -1,0 +1,14 @@
+{
+  "imagen": "img/mapa_departamental_raster.png",
+  "limites": [
+    [
+      4.638312,
+      -74.651678
+    ],
+    [
+      6.99176,
+      -71.995337
+    ]
+  ],
+  "coincidencia": 0.883
+}

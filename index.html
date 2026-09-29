@@ -39,8 +39,13 @@
   /* mapa departamental: esquina inferior derecha, mismo estilo que los logos (250 px de ancho) */
   .mapa-dep { width: 250px; background: var(--panel); border-left: 1px solid var(--borde); border-top: 1px solid var(--borde);
               overflow: hidden; cursor: pointer; margin: 0 !important; }
-  .mapa-dep img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: contain; padding: 6px; }
+  .mapa-dep .marco { position: relative; margin: 8px; aspect-ratio: 1200 / 995; }
+  .mapa-dep img { display: block; width: 100%; height: 100%; }
   .mapa-dep:hover img { filter: brightness(1.06); }
+  .mapa-dep .vista { position: absolute; border: 2px solid #d11f5a; background: rgba(209,31,90,.15); pointer-events: none;
+                     min-width: 6px; min-height: 6px; box-sizing: border-box; }
+  .mapa-dep .vista.punto { border-radius: 50%; width: 10px !important; height: 10px !important; transform: translate(-50%, -50%);
+                           background: #d11f5a; border-color: #fff; }
   .leaflet-bottom.leaflet-right { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
   .leaflet-bottom.leaflet-right .leaflet-control-zoom { margin: 0 10px 0 0; }
   @media (max-width: 800px) { .mapa-dep { display: none; } }
@@ -67,7 +72,7 @@
   #ruta span.sep { opacity: .45; }
   nav label { font-size: 10px; opacity: .7; text-transform: uppercase; letter-spacing: .06em; display: block; margin-bottom: 1px; line-height: 1.1; }
   nav select { font: inherit; font-size: 12px; background: rgba(255,255,255,.08); color: var(--nav-texto); border: 1px solid rgba(255,255,255,.22);
-               border-radius: 6px; padding: 2px 6px; width: 210px; height: 24px; }
+               border-radius: 6px; padding: 2px 6px; width: 175px; height: 24px; }
   nav select option { color: #1f2328; background: #fff; }
   nav select:focus { outline: 2px solid var(--acento); }
   #carga { font-size: 12px; opacity: 0; transition: opacity .2s; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
@@ -300,19 +305,58 @@
     onAdd: function () {
       var div = L.DomUtil.create('div', 'mapa-dep');
       div.title = 'Ver todo el departamento de Boyacá';
-      div.innerHTML = '<img src="img/mapa_departamental_web.png" alt="Mapa departamental de Boyacá" width="250" height="188">';
+      div.innerHTML = '<div class="marco"><img src="img/mapa_departamental_mini.png" alt="Mapa departamental de Boyacá">' +
+                      '<div class="vista" id="vistaMini" hidden></div></div>';
       L.DomEvent.disableClickPropagation(div);
       L.DomEvent.on(div, 'click', function () { ir('15'); });
       return div;
     }
   });
   new MapaDep().addTo(mapa);
+
+  // Imagen del departamento georreferenciada (coincide con el limite oficial): capa raster sobre el mapa
+  var RASTER = { imagen: 'img/mapa_departamental_raster.png', limites: [[4.638312, -74.651678], [6.99176, -71.995337]] };
+  mapa.createPane('raster').style.zIndex = 250;                      // encima del mapa base, debajo de predios
+  mapa.getPane('raster').style.pointerEvents = 'none';
+  var capaRaster = L.imageOverlay(RASTER.imagen, RASTER.limites, { pane: 'raster', opacity: 0.85, interactive: false });
+  var rasterActivo = true;
+  function opacidadRaster() {
+    var z = mapa.getZoom();
+    capaRaster.setOpacity(z < 10 ? 0.85 : z < 11 ? 0.55 : z < 12 ? 0.3 : 0);
+  }
+  capaRaster.addTo(mapa);
+  mapa.on('zoomend', opacidadRaster);
+  mapa.on('overlayadd overlayremove', function (e) { if (e.layer === capaRaster) rasterActivo = e.type === 'overlayadd'; });
+
+  // Ubicacion de la vista actual en el mapa departamental de la esquina
+  function yMerc(lat) { return Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)); }
+  function fraccion(ll) {
+    var L0 = RASTER.limites;
+    return { x: (ll.lng - L0[0][1]) / (L0[1][1] - L0[0][1]),
+             y: (yMerc(L0[1][0]) - yMerc(ll.lat)) / (yMerc(L0[1][0]) - yMerc(L0[0][0])) };
+  }
+  function actualizarMini() {
+    var el = $('vistaMini');
+    if (!el) return;
+    var b = mapa.getBounds(), a = fraccion(b.getNorthWest()), c = fraccion(b.getSouthEast());
+    var x0 = Math.max(0, a.x), y0 = Math.max(0, a.y), x1 = Math.min(1, c.x), y1 = Math.min(1, c.y);
+    if (x1 <= 0 || y1 <= 0 || x0 >= 1 || y0 >= 1 || (x1 - x0 > 0.95 && y1 - y0 > 0.95)) { el.hidden = true; return; }
+    el.hidden = false;
+    var chico = (x1 - x0) < 0.03 && (y1 - y0) < 0.03;                 // vista muy pequena: se marca con un punto
+    el.classList.toggle('punto', chico);
+    el.style.left = ((chico ? (x0 + x1) / 2 : x0) * 100) + '%';
+    el.style.top = ((chico ? (y0 + y1) / 2 : y0) * 100) + '%';
+    el.style.width = chico ? '' : ((x1 - x0) * 100) + '%';
+    el.style.height = chico ? '' : ((y1 - y0) * 100) + '%';
+  }
+  mapa.on('moveend', actualizarMini);
   L.control.zoom({ position: 'bottomright' }).addTo(mapa);   // queda encima del mapa departamental
   var calles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     { maxZoom: 20, maxNativeZoom: 19, attribution: '&copy; OpenStreetMap · Datos: IGAC' }).addTo(mapa);
   var satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     { maxZoom: 20, maxNativeZoom: 19, attribution: 'Esri World Imagery · Datos: IGAC' });
-  L.control.layers({ 'Calles': calles, 'Satélite': satelite }, null, { position: 'topright' }).addTo(mapa);
+  var controlCapas = L.control.layers({ 'Calles': calles, 'Satélite': satelite }, null, { position: 'topright' }).addTo(mapa);
+  controlCapas.addOverlay(capaRaster, 'Mapa departamental (ilustrado)');
   L.control.scale({ imperial: false }).addTo(mapa);
 
   // Contorno del departamento: linea gruesa siempre visible (debajo de etiquetas, encima de predios)
