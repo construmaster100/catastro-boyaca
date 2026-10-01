@@ -272,6 +272,7 @@
   .tabla-vert th, .tabla-vert td { padding: 2px 3px; border-bottom: 1px solid var(--borde); text-align: right; }
   .tabla-vert th:first-child, .tabla-vert td:first-child { text-align: center; }
   .tabla-vert th { color: var(--suave); font-weight: 600; }
+  .tabla-vert tr.total td { font-weight: 700; color: var(--texto); border-top: 1px solid var(--texto); }
   /* vertices del lote sobre el mapa */
   .vertice { background: none; border: 0; pointer-events: none; }
   .vertice div { position: absolute; white-space: nowrap; font: 600 10px/1.15 ui-monospace, Consolas, monospace; color: #7a1030;
@@ -1009,12 +1010,14 @@
       ['Coordenadas', fmt(p.LATITUD, 6) + ', ' + fmt(p.LONGITUD, 6)]
     ].map(function (r) { return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join('');
     // tabla de vertices en la ficha del panel
-    var gv = geometriaLote(f);
+    var gv = geometriaLote(f), p = f.properties;
     verticesSel = gv ? verticesLote(gv) : [];
     $('fichaVertices').hidden = !verticesSel.length;
-    $('vertTitulo').textContent = 'Vértices (' + verticesSel.length + ') · Este / Norte en metros';
-    $('vertTabla').innerHTML = '<tr><th>Vértice</th><th>Este (m)</th><th>Norte (m)</th></tr>' + verticesSel.map(function (v) {
-      return '<tr><td><b>' + v.letra + '</b></td><td>' + fmt(v.E, 2) + '</td><td>' + fmt(v.N, 2) + '</td></tr>'; }).join('');
+    $('vertTitulo').textContent = 'Cuadro de coordenadas · ' + verticesSel.length + ' puntos (m)';
+    $('vertTabla').innerHTML = '<tr><th>Punto</th><th>Este (m)</th><th>Norte (m)</th></tr>' + verticesSel.map(function (v) {
+      return '<tr><td><b>' + v.letra + '</b></td><td>' + fmt(v.E, 2) + '</td><td>' + fmt(v.N, 2) + '</td></tr>'; }).join('') +
+      '<tr class="total"><td colspan="2">Área total</td><td>' + fmt(p.AREA_M2, 2) + ' m²</td></tr>' +
+      (gv ? '<tr class="total"><td colspan="2">Perímetro</td><td>' + fmt(gv.perimetro, 2) + ' m</td></tr>' : '');
     $('ficha').style.display = 'block';
     if (fichaDirecta) { fichaDirecta = false; abrirFicha(true); }
   }
@@ -1103,20 +1106,36 @@
     var norte = 0;
     pts.forEach(function (q, i) { if (q.y > pts[norte].y) norte = i; });
     pts = pts.slice(norte).concat(pts.slice(0, norte));
-    pts.forEach(function (q, i) { q.num = i + 1; });
     var simp = ladosPrincipales(pts.slice());
+    // Puntos dominantes: 4 (hasta 6 si la forma lo exige). Se quita, uno a uno, el vertice cuyo triangulo con sus
+    // vecinos tiene menor area (Visvalingam): siempre hasta 6; de 6 a 4 solo si ese triangulo es < 3 % del lote.
+    var dom = simp.slice(), areaLote = Math.abs(sa) / 2;
+    var tri = function (i) {
+      var a = dom[(i - 1 + dom.length) % dom.length], b = dom[i], c = dom[(i + 1) % dom.length];
+      return Math.abs((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y)) / 2;
+    };
+    while (dom.length > 4) {
+      var menor = 0;
+      for (var i = 1; i < dom.length; i++) if (tri(i) < tri(menor)) menor = i;
+      if (dom.length <= 6 && tri(menor) > 0.03 * areaLote) break;
+      dom.splice(menor, 1);
+    }
+    // P1 = punto dominante mas al norte; P2, P3... en sentido horario
+    var n0 = 0;
+    dom.forEach(function (q, i) { if (q.y > dom[n0].y) n0 = i; });
+    dom = dom.slice(n0).concat(dom.slice(0, n0));
+    dom.forEach(function (q, i) { q.num = 'P' + (i + 1); });
     var s = 0;
-    simp.forEach(function (a, i) { var b = simp[(i + 1) % simp.length]; s += a.x * b.y - b.x * a.y; });
-    var lados = simp.map(function (a, i) {
-      var b = simp[(i + 1) % simp.length], dx = b.x - a.x, dy = b.y - a.y, largo = Math.hypot(dx, dy) || 1;
+    dom.forEach(function (a, i) { var b = dom[(i + 1) % dom.length]; s += a.x * b.y - b.x * a.y; });
+    var lados = dom.map(function (a, i) {
+      var b = dom[(i + 1) % dom.length], dx = b.x - a.x, dy = b.y - a.y, largo = Math.hypot(dx, dy) || 1;
       var nx = (s > 0 ? dy : -dy) / largo, ny = (s > 0 ? -dx : dx) / largo;   // normal hacia afuera
       var k = ((Math.round(Math.atan2(ny, nx) / (Math.PI / 4)) % 8) + 8) % 8;
-      return { a: a, b: b, largo: largo, nx: nx, ny: ny, rumbo: RUMBOS[k],
-               desde: String(a.num), hasta: String(b.num) };
+      return { a: a, b: b, largo: largo, nx: nx, ny: ny, rumbo: RUMBOS[k], desde: a.num, hasta: b.num };
     });
     var perimetro = 0;
     pts.forEach(function (a, i) { var b = pts[(i + 1) % pts.length]; perimetro += Math.hypot(b.x - a.x, b.y - a.y); });
-    return { pts: pts, simp: simp, lados: lados, perimetro: perimetro };
+    return { pts: pts, simp: dom, dom: dom, lados: lados, perimetro: perimetro };
   }
 
   function agregarCotas(f, grupo) {
@@ -1124,7 +1143,7 @@
     if (!geo) return;
     var anillo = geo.pts.map(function (q) { return [q.lng, q.lat]; });
     var pts = geo.simp;
-    var lados = geo.lados.slice().sort(function (u, v) { return v.largo - u.largo; }).slice(0, NUM_COTAS);
+    var lados = geo.lados;                                  // un lado por cada par de puntos dominantes (4 a 6)
 
     lados.forEach(function (l) {
       var dx = l.b.px - l.a.px, dy = l.b.py - l.a.py, n = Math.hypot(dx, dy) || 1;
@@ -1199,9 +1218,9 @@
 
   // Vertices del lote (los mismos A, B, C... de la ficha y los linderos) con coordenadas planas y geograficas
   function verticesLote(geo) {
-    return geo.pts.map(function (q) {
+    return geo.dom.map(function (q) {
       var c = aPlano.forward([q.lng, q.lat]);
-      return { letra: String(q.num), lat: q.lat, lng: q.lng, E: c[0], N: c[1] };
+      return { letra: q.num, lat: q.lat, lng: q.lng, E: c[0], N: c[1] };
     });
   }
 
@@ -1246,18 +1265,18 @@
         return Math.abs(rx * ux + ry * uy) < o[2] + 7 && Math.abs(-rx * uy + ry * ux) < o[3] + 7;
       });
     };
-    geo.pts.forEach(function (q) {                    // todos los vertices numerados, numero hacia afuera del lote
-      var a = P(q), dx = a.px - cen.x, dy = a.py - cen.y, n = Math.hypot(dx, dy) || 1, d = 11;
+    geo.dom.forEach(function (q) {                    // puntos dominantes P1..Pn, rotulo hacia afuera del lote
+      var a = P(q), dx = a.px - cen.x, dy = a.py - cen.y, n = Math.hypot(dx, dy) || 1, d = 16;
       var tx = a.px + dx / n * d, ty = a.py + dy / n * d + 4;
       while (d < 70 && choca(tx, ty - 4)) {
         d += 9; tx = a.px + dx / n * d; ty = a.py + dy / n * d + 4;             // si choca, mas afuera con linea guia
       }
       puestos.push([tx, ty - 4, 6, 6]);
-      if (d > 11) svg += '<line x1="' + a.px.toFixed(1) + '" y1="' + a.py.toFixed(1) + '" x2="' + tx.toFixed(1) + '" y2="' + (ty - 4).toFixed(1) +
+      if (d > 16) svg += '<line x1="' + a.px.toFixed(1) + '" y1="' + a.py.toFixed(1) + '" x2="' + tx.toFixed(1) + '" y2="' + (ty - 4).toFixed(1) +
                          '" stroke="#b0164a" stroke-width=".6" stroke-dasharray="2 2"/>';
-      svg += '<circle cx="' + a.px.toFixed(1) + '" cy="' + a.py.toFixed(1) + '" r="' + (geo.pts.length > 40 ? 2 : 3.5) + '" fill="#b0164a"/>' +
-             (geo.pts.length <= 60 ? '<text x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" font-size="' + (geo.pts.length > 25 ? 9 : 12) +
-             '" font-weight="700" fill="#1f2328" text-anchor="middle">' + q.num + '</text>' : '');
+      svg += '<circle cx="' + a.px.toFixed(1) + '" cy="' + a.py.toFixed(1) + '" r="4" fill="#b0164a"/>' +
+             ('<text x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" font-size="' + 12 +
+             '" font-weight="700" fill="#1f2328" text-anchor="middle">' + q.num + '</text>');
     });
     var c = puntoInterior(geo.pts.map(P));
     svg += '<text x="' + c[0].toFixed(1) + '" y="' + c[1].toFixed(1) + '" font-size="16" font-weight="800" fill="#1f2328" text-anchor="middle">' +
@@ -1321,8 +1340,10 @@
       '<h2>Identificación</h2><table>' + filas + '</table>' +
       '<h2>Plano del lote</h2><div class="plano" id="plano">' + planoSVG(geo, p.AREA_M2) + '</div>' +
       '<h2>Linderos</h2><table class="linderos"><tr><th>#</th><th>Rumbo</th><th>Tramo</th><th class="num">Longitud</th></tr>' + linderos + '</table>' +
-      '<h2>Coordenadas de los vértices</h2><table class="linderos"><tr><th>Vértice</th><th class="num">Este (m)</th>' +
-      '<th class="num">Norte (m)</th><th class="num">Latitud</th><th class="num">Longitud</th></tr>' + vertices + '</table>' +
+      '<h2>Cuadro de coordenadas</h2><table class="linderos"><tr><th>Punto</th><th class="num">Este (m)</th>' +
+      '<th class="num">Norte (m)</th><th class="num">Latitud</th><th class="num">Longitud</th></tr>' + vertices +
+      '<tr><th colspan="2">Área total</th><td class="num" colspan="3"><b>' + fmt(p.AREA_M2, 2) + ' m²</b>' + (p.AREA_M2 >= 10000 ? ' (' + fmt(p.AREA_M2 / 10000, 4) + ' ha)' : '') + '</td></tr>' +
+      '<tr><th colspan="2">Perímetro</th><td class="num" colspan="3">' + fmt(geo.perimetro, 2) + ' m</td></tr></table>' +
       '<p class="nota" style="margin-top:4px">Este/Norte: MAGNA-SIRGAS Origen Nacional (EPSG:9377). Latitud/longitud: MAGNA-SIRGAS (EPSG:4686).</p>' +
       '<p class="nota">Fuente: IGAC, Datos Abiertos Catastrales (capa ' + (p.ZONA === 'URBANO' ? 'U_TERRENO' : 'R_TERRENO') + '). ' +
       'Área, perímetro y longitudes calculados a partir de la geometría publicada (MAGNA-SIRGAS, EPSG:4686); linderos simplificados ' +
