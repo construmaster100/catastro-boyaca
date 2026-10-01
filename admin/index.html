@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Administración Catastro Boyacá</title>
+<link rel="icon" href="/img/logo_web.png">
+<style>
+  :root {
+    --bg: #f5f4f0; --panel: #ffffff; --texto: #1f2328; --suave: #5d6470; --borde: #dcdad3;
+    --verde: #0f4d2e; --dorado: #b8860b; --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --nav: #1f2a36; --nav-texto: #f3f1ec;
+    --resalte: #fff8e6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16181c; --panel: #1f2227; --texto: #e7e7e4; --suave: #9aa0a8; --borde: #34383f;
+      --verde: #7fd1a3; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --nav: #0f1419; --nav-texto: #e7e7e4; --resalte: #3a2f12;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16181c; --panel: #1f2227; --texto: #e7e7e4; --suave: #9aa0a8; --borde: #34383f;
+    --verde: #7fd1a3; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --nav: #0f1419; --nav-texto: #e7e7e4; --resalte: #3a2f12;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--texto); font: 13px/1.45 system-ui, "Segoe UI", Roboto, sans-serif;
+         display: grid; grid-template-columns: 250px 1fr; grid-template-rows: 100px 1fr; height: 100vh; overflow: hidden;
+         grid-template-areas: "logo cabeza" "lateral principal"; }
+  #logo { grid-area: logo; background: var(--panel); border-right: 1px solid var(--borde); border-bottom: 1px solid var(--borde);
+          display: flex; align-items: center; justify-content: center; }
+  #logo img { width: 100%; height: 100%; object-fit: contain; padding: 4px 6px; }
+  header { grid-area: cabeza; background: var(--nav); color: var(--nav-texto); display: flex; align-items: center; gap: 16px; padding: 0 22px; }
+  header h1 { margin: 0; font-size: 19px; flex: 1; }
+  header h1 small { display: block; font-size: 12px; font-weight: 400; opacity: .7; }
+  header button, header a { font: 600 12px system-ui, sans-serif; color: var(--nav-texto); background: rgba(255,255,255,.1);
+                            border: 1px solid rgba(255,255,255,.25); border-radius: 6px; padding: 6px 12px; cursor: pointer; text-decoration: none; }
+  /* barra lateral */
+  nav { grid-area: lateral; background: var(--panel); border-right: 1px solid var(--borde); padding: 14px 10px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
+  nav h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--suave); margin: 4px 8px 6px; }
+  nav button { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; text-align: left;
+               font: 600 13px system-ui, sans-serif; color: var(--texto); background: none; border: 0; border-left: 3px solid transparent;
+               border-radius: 6px; padding: 9px 10px; cursor: pointer; }
+  nav button:hover { background: var(--bg); }
+  nav button[aria-current="true"] { background: var(--resalte); border-left-color: var(--dorado); }
+  nav button b { font-variant-numeric: tabular-nums; color: var(--verde); font-size: 14px; }
+  nav .pie { margin-top: auto; font-size: 11px; color: var(--suave); padding: 10px 8px 0; border-top: 1px solid var(--borde); }
+  main { grid-area: principal; overflow-y: auto; padding: 18px 22px 30px; }
+  section { display: none; }
+  section.activa { display: block; }
+  h3 { margin: 0 0 12px; font-size: 17px; }
+  .cifras { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .cifra { background: var(--panel); border: 1px solid var(--borde); border-radius: 10px; padding: 12px 14px; }
+  .cifra span { display: block; font-size: 12px; color: var(--suave); }
+  .cifra b { display: block; font-size: 28px; color: var(--verde); font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .caja { background: var(--panel); border: 1px solid var(--borde); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
+  .caja h4 { margin: 0 0 4px; font-size: 14px; }
+  .caja p.sub { margin: 0 0 10px; color: var(--suave); font-size: 12px; }
+  .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  svg text { fill: var(--texto); font: 11px system-ui, sans-serif; }
+  svg .muted { fill: var(--suave); }
+  .leyenda { display: flex; gap: 14px; font-size: 12px; color: var(--suave); margin-bottom: 6px; }
+  .leyenda i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  .tabla { overflow: auto; max-height: 520px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--borde); text-align: left; white-space: nowrap; }
+  th { position: sticky; top: 0; background: var(--panel); color: var(--suave); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  td code { font-size: 11px; }
+  .barra-h { display: inline-block; height: 8px; background: var(--s1); border-radius: 4px; vertical-align: middle; margin-right: 6px; }
+  .chip { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 8px; background: var(--bg); border: 1px solid var(--borde); }
+  .vacio { color: var(--suave); padding: 20px; text-align: center; }
+  .tip { position: fixed; z-index: 50; pointer-events: none; background: var(--panel); border: 1px solid var(--borde); border-radius: 6px;
+         padding: 5px 8px; font-size: 12px; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+  .aviso { font-size: 11.5px; color: var(--suave); background: var(--panel); border: 1px dashed var(--borde); border-radius: 8px; padding: 8px 12px; }
+  @media (max-width: 900px) {
+    body { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; grid-template-areas: "cabeza" "lateral" "principal"; overflow: auto; height: auto; }
+    #logo { display: none; } nav { flex-direction: row; flex-wrap: wrap; } nav .pie, nav h2 { display: none; } nav button { width: auto; }
+    .dos { grid-template-columns: 1fr; } header { padding: 10px 14px; flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<div id="logo"><img src="/img/logo_web.png" alt="Catastro Boyacá"></div>
+<header>
+  <h1>Administración · Estadísticas de uso<small id="generado">Cargando…</small></h1>
+  <button id="btnRecargar" type="button">↻ Actualizar</button>
+  <button id="btnCsv" type="button">⬇ Exportar CSV</button>
+  <a href="/" target="_blank" rel="noopener">🗺 Abrir visor</a>
+</header>
+
+<nav aria-label="Secciones">
+  <h2>Panel</h2>
+  <button data-s="resumen" aria-current="true">📊 Resumen</button>
+  <button data-s="visitas">👁 Visitas a la página <b id="nVisitas">—</b></button>
+  <button data-s="ingresos">🚪 Ingresos de personas <b id="nIngresos">—</b></button>
+  <button data-s="predios">📍 Predios consultados <b id="nPredios">—</b></button>
+  <button data-s="consultantes">👤 Quién consulta <b id="nVisitantes">—</b></button>
+  <button data-s="registro">🧾 Registro de actividad</button>
+  <div class="pie">Solo visible en este computador. Datos en <code>registro/visitas.jsonl</code>. Se actualiza cada 30 s.</div>
+</nav>
+
+<main>
+  <section id="s-resumen" class="activa">
+    <h3>Resumen</h3>
+    <div class="cifras" id="cifras"></div>
+    <div class="caja"><h4>Actividad por día</h4><p class="sub">Visitas a la página, ingresos de personas y predios consultados.</p>
+      <div class="leyenda"><span><i style="background:var(--s1)"></i>Visitas</span><span><i style="background:var(--s3)"></i>Ingresos</span><span><i style="background:var(--s2)"></i>Predios</span></div>
+      <svg id="gDias"></svg></div>
+    <div class="dos">
+      <div class="caja"><h4>Municipios más consultados</h4><div id="tMun"></div></div>
+      <div class="caja"><h4>Navegadores y sistemas</h4><div id="tNav"></div></div>
+    </div>
+    <p class="aviso">Los datos de quien consulta (fecha, IP, navegador, sistema, idioma, pantalla) se recogen con fines estadísticos y se informa en el
+      visor (Ley 1581 de 2012). No se publican: la carpeta <code>registro/</code> está excluida del repositorio y de la versión en línea.</p>
+  </section>
+
+  <section id="s-visitas">
+    <h3>Visitas a la página</h3>
+    <div class="caja"><h4>Visitas por día</h4><p class="sub">Cada vez que se abre o recarga una página del visor.</p><svg id="gVisitas"></svg></div>
+    <div class="caja"><h4>Páginas visitadas</h4><div id="tPaginas"></div></div>
+  </section>
+
+  <section id="s-ingresos">
+    <h3>Ingresos de personas</h3>
+    <div class="caja"><h4>Ingresos por día</h4><p class="sub">Un ingreso es una sesión: alguien abre el visor (una pestaña nueva), aunque luego navegue o recargue.</p><svg id="gIngresos"></svg></div>
+  </section>
+
+  <section id="s-predios">
+    <h3>Predios consultados</h3>
+    <div class="caja"><h4>Predios seleccionados por día</h4><svg id="gPredios"></svg></div>
+    <div class="caja"><h4>Predios más consultados</h4><p class="sub">Clic en un código para verlo en el visor.</p><div class="tabla" id="tPredios"></div></div>
+  </section>
+
+  <section id="s-consultantes">
+    <h3>Quién consulta</h3>
+    <div class="caja"><h4>Consultantes</h4><p class="sub">Cada fila es un navegador (identificador anónimo). Ordenados por última actividad.</p><div class="tabla" id="tConsultantes"></div></div>
+  </section>
+
+  <section id="s-registro">
+    <h3>Registro de actividad</h3>
+    <div class="caja"><h4>Últimos 300 eventos</h4><div class="tabla" id="tRegistro"></div></div>
+  </section>
+</main>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var D = null;
+  function fmt(n, d) { return n == null ? '—' : Number(n).toLocaleString('es-CO', { maximumFractionDigits: d || 0 }); }
+  function esc(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function fecha(t) { return t ? t.replace('T', ' ').slice(0, 16) : '—'; }
+  var NOMBRES = { visita: 'Visita', predio: 'Predio', municipio: 'Municipio', ficha: 'Ficha impresa', descarga: 'Descarga', documento: 'Documento', busqueda: 'Búsqueda' };
+
+  // ---- navegacion de la barra lateral
+  document.querySelectorAll('nav button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('nav button').forEach(function (x) { x.setAttribute('aria-current', String(x === b)); });
+      document.querySelectorAll('main section').forEach(function (s) { s.classList.toggle('activa', s.id === 's-' + b.dataset.s); });
+      history.replaceState(null, '', '#' + b.dataset.s);
+    });
+  });
+  var inicial = location.hash.slice(1);
+  if (inicial) { var b0 = document.querySelector('nav button[data-s="' + inicial + '"]'); if (b0) b0.click(); }
+
+  // ---- datos
+  function cargar() {
+    fetch('/api/estadisticas').then(function (r) {
+      if (!r.ok) throw new Error(r.status === 403 ? 'Esta vista solo se abre en el computador del administrador.' : 'Error ' + r.status);
+      return r.json();
+    }).then(function (j) { D = j; pintar(); })
+      .catch(function (e) { $('generado').textContent = e.message + ' (abra el visor con 4_ABRIR_VISOR.bat)'; });
+  }
+  $('btnRecargar').addEventListener('click', cargar);
+  setInterval(cargar, 30000);
+  cargar();
+
+  function pintar() {
+    var t = D.totales;
+    $('generado').textContent = 'Actualizado ' + fecha(D.generado) + ' · ' + fmt(D.total_eventos) + ' eventos registrados';
+    $('nVisitas').textContent = fmt(t.visitas); $('nIngresos').textContent = fmt(t.ingresos);
+    $('nPredios').textContent = fmt(t.predios); $('nVisitantes').textContent = fmt(t.visitantes);
+    $('cifras').innerHTML = [['Visitas a la página', t.visitas], ['Ingresos de personas', t.ingresos], ['Visitantes distintos', t.visitantes],
+      ['Predios consultados', t.predios], ['Predios distintos', t.predios_distintos], ['Fichas impresas', t.fichas], ['Descargas', t.descargas]]
+      .map(function (c) { return '<div class="cifra"><span>' + c[0] + '</span><b>' + fmt(c[1]) + '</b></div>'; }).join('');
+    barras('gDias', D.dias, [['visitas', 'var(--s1)', 'Visitas'], ['ingresos', 'var(--s3)', 'Ingresos'], ['predios', 'var(--s2)', 'Predios']]);
+    barras('gVisitas', D.dias, [['visitas', 'var(--s1)', 'Visitas']]);
+    barras('gIngresos', D.dias, [['ingresos', 'var(--s3)', 'Ingresos']]);
+    barras('gPredios', D.dias, [['predios', 'var(--s2)', 'Predios']]);
+    $('tMun').innerHTML = lista(D.top_municipios.map(function (m) { return [m.municipio, m.veces]; }), 'Municipio', 'Consultas');
+    $('tNav').innerHTML = lista(D.navegadores.concat(D.sistemas.map(function (s) { return ['🖥 ' + s[0], s[1]]; })), 'Navegador / sistema', 'Visitantes');
+    $('tPaginas').innerHTML = lista(D.paginas.map(function (p) { return [p[0], p[1]]; }), 'Página', 'Visitas');
+    $('tPredios').innerHTML = D.top_predios.length ? '<table><tr><th>#</th><th>Número predial</th><th>Municipio</th><th class="n">Veces</th></tr>' +
+      D.top_predios.map(function (p, i) {
+        return '<tr><td>' + (i + 1) + '</td><td><a href="/#' + esc(p.codigo) + '" target="_blank" rel="noopener"><code>' + esc(p.codigo) + '</code></a></td><td>' +
+               esc(p.municipio) + '</td><td class="n">' + fmt(p.veces) + '</td></tr>'; }).join('') + '</table>' : '<p class="vacio">Aún no se han consultado predios.</p>';
+    $('tConsultantes').innerHTML = D.consultantes.length ? '<table><tr><th>Visitante</th><th>IP</th><th>Navegador</th><th>Sistema</th><th>Idioma</th><th>Pantalla</th>' +
+      '<th>Primera visita</th><th>Última actividad</th><th class="n">Visitas</th><th class="n">Ingresos</th><th class="n">Predios</th><th>Último predio</th></tr>' +
+      D.consultantes.map(function (c) {
+        return '<tr><td><span class="chip">' + esc(c.visitante || '—') + '</span></td><td><code>' + esc(c.ip) + '</code></td><td>' + esc(c.navegador) +
+               '</td><td>' + esc(c.sistema) + '</td><td>' + esc(c.idioma) + '</td><td>' + esc(c.pantalla) + '</td><td>' + fecha(c.primero) + '</td><td>' +
+               fecha(c.ultimo) + '</td><td class="n">' + fmt(c.visitas) + '</td><td class="n">' + fmt(c.ingresos) + '</td><td class="n">' + fmt(c.predios) +
+               '</td><td><code>' + esc(c.ultimo_predio) + '</code></td></tr>'; }).join('') + '</table>' : '<p class="vacio">Sin registros todavía.</p>';
+    $('tRegistro').innerHTML = D.recientes.length ? '<table><tr><th>Fecha</th><th>Evento</th><th>Detalle</th><th>Página</th><th>IP</th><th>Visitante</th></tr>' +
+      D.recientes.map(function (e) {
+        var d = e.datos || {}, det = d.codigo ? d.codigo + (d.municipio ? ' · ' + d.municipio : '') : (d.municipio || d.titulo || d.tipo || '');
+        return '<tr><td>' + fecha(e.fecha) + '</td><td><span class="chip">' + (NOMBRES[e.tipo] || e.tipo) + '</span></td><td>' + esc(det) +
+               '</td><td>' + esc(e.pagina) + '</td><td><code>' + esc(e.ip) + '</code></td><td>' + esc((e.vid || '').slice(0, 8)) + '</td></tr>'; }).join('') +
+      '</table>' : '<p class="vacio">Sin registros todavía.</p>';
+  }
+
+  function lista(filas, c1, c2) {
+    if (!filas.length) return '<p class="vacio">Sin datos todavía.</p>';
+    var max = Math.max.apply(0, filas.map(function (f) { return f[1]; }));
+    return '<table><tr><th>' + c1 + '</th><th class="n">' + c2 + '</th></tr>' + filas.map(function (f) {
+      return '<tr><td>' + esc(f[0]) + '</td><td class="n"><span class="barra-h" style="width:' + (80 * f[1] / max).toFixed(0) + 'px"></span>' + fmt(f[1]) + '</td></tr>'; }).join('') + '</table>';
+  }
+
+  // barras agrupadas por dia (eje y unico)
+  function barras(id, dias, series) {
+    var svg = $(id);
+    if (!dias.length) { svg.setAttribute('viewBox', '0 0 900 60'); svg.innerHTML = '<text x="450" y="34" text-anchor="middle" class="muted">Sin datos todavía</text>'; return; }
+    var W = 900, H = 230, L = 40, R = 10, T = 10, B = 34, n = dias.length, ns = series.length;
+    var max = Math.max(1, Math.max.apply(0, dias.map(function (d) { return Math.max.apply(0, series.map(function (s) { return d[s[0]]; })); })));
+    var paso = Math.pow(10, Math.floor(Math.log10(max))), tope = Math.ceil(max / paso) * paso;
+    var grupo = (W - L - R) / n, ancho = Math.max(2, Math.min(18, (grupo - 6) / ns - 2));
+    var s = '';
+    for (var g = 0; g <= 4; g++) {
+      var v = tope * g / 4, y = T + (H - T - B) * (1 - v / tope);
+      s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '" stroke="var(--borde)"/><text x="' + (L - 6) + '" y="' + (y + 4) + '" text-anchor="end" class="muted">' + fmt(v) + '</text>';
+    }
+    dias.forEach(function (d, i) {
+      var x0 = L + grupo * i + (grupo - (ancho + 2) * ns) / 2;
+      series.forEach(function (se, k) {
+        var v = d[se[0]], h = (H - T - B) * v / tope, x = x0 + k * (ancho + 2);
+        s += '<rect x="' + x.toFixed(1) + '" y="' + (H - B - h).toFixed(1) + '" width="' + ancho.toFixed(1) + '" height="' + Math.max(0, h).toFixed(1) +
+             '" rx="2" fill="' + se[1] + '" data-t="' + esc(d.dia + ' · ' + se[2] + ': ' + fmt(v)) + '"/>';
+      });
+      if (n <= 14 || i % Math.ceil(n / 14) === 0) s += '<text x="' + (L + grupo * (i + .5)) + '" y="' + (H - 14) + '" text-anchor="middle" class="muted">' + d.dia.slice(5).split('-').reverse().join('/') + '</text>';
+    });
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.innerHTML = s;
+  }
+  var tip = $('tip');
+  document.addEventListener('mousemove', function (e) {
+    var t = e.target.getAttribute && e.target.getAttribute('data-t');
+    if (!t) { tip.hidden = true; return; }
+    tip.textContent = t; tip.hidden = false; tip.style.left = (e.clientX + 12) + 'px'; tip.style.top = (e.clientY + 12) + 'px';
+  });
+
+  // ---- exportar CSV (registro completo de consultantes)
+  $('btnCsv').addEventListener('click', function () {
+    if (!D) return;
+    var cab = ['fecha', 'evento', 'detalle', 'pagina', 'ip', 'visitante', 'idioma', 'pantalla'];
+    var lineas = [cab.join(';')].concat(D.recientes.map(function (e) {
+      var d = e.datos || {};
+      return [fecha(e.fecha), e.tipo, d.codigo || d.municipio || d.titulo || d.tipo || '', e.pagina, e.ip, (e.vid || '').slice(0, 8), e.idioma, e.pantalla]
+        .map(function (v) { return String(v == null ? '' : v).replace(/;/g, ','); }).join(';');
+    }));
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + lineas.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'registro_visitas_' + D.generado.slice(0, 10) + '.csv';
+    a.click();
+  });
+})();
+</script>
+</body>
+</html>

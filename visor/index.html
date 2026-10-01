@@ -327,6 +327,9 @@
   .cuadro-coord[hidden] { display: none; }
   .leaflet-container.lejos .cota, .leaflet-container.lejos .area-lote { display: none; }
   #logo { cursor: pointer; }
+  .aviso-privacidad { position: fixed; left: 260px; bottom: 2px; z-index: 900; font-size: 9.5px; color: var(--suave);
+                      background: rgba(255,255,255,.75); padding: 0 6px; border-radius: 4px; pointer-events: none; }
+  @media (max-width: 800px) { .aviso-privacidad { left: 4px; } }
   /* grilla de coordenadas */
   .grilla-etq { background: none; border: 0; pointer-events: none; }
   .grilla-etq div { position: absolute; white-space: nowrap; font: 600 10px/1 ui-monospace, Consolas, monospace;
@@ -422,6 +425,7 @@
 </aside>
 
 <div id="mapa"></div>
+<div class="aviso-privacidad" title="Ley 1581 de 2012 de protección de datos personales">Este visor registra con fines estadísticos la fecha, el navegador y la dirección IP de cada consulta (Ley 1581 de 2012).</div>
 
 <div id="ventanaJer" hidden role="dialog" aria-modal="true" aria-label="Jerarquía urbana">
   <div class="caja">
@@ -479,6 +483,7 @@
 
 <script src="lib/modo_offline.js"></script>
 <script src="lib/datos_archivo.js"></script>
+<script src="lib/registro.js"></script>
 <script src="lib/leaflet/leaflet.min.js"></script>
 <script src="lib/proj4/proj4.js"></script>
 <script>
@@ -997,6 +1002,8 @@
   // ---------------- predio identificado
   function elegir(f, desdeMapa) {
     seleccion = f;
+    var pr = f.properties, mm = muns[(pr.NUMERO_CATASTRAL || '').slice(0, 5)];
+    registrar('predio', { codigo: pr.NUMERO_CATASTRAL, municipio: mm ? titulo(mm.nombre) : '', zona: pr.ZONA, area: pr.AREA_M2 });
     if (capaSel) mapa.removeLayer(capaSel);
     var poligono = L.geoJSON(f, { renderer: lienzo, style: { color: css('--sel'), weight: 3, fillOpacity: 0.25 } });
     capaSel = L.featureGroup([poligono]).addTo(mapa);
@@ -1348,6 +1355,7 @@
 
   function abrirFicha(enEstaVentana) {
     if (!seleccion) return;
+    registrar('ficha', { codigo: seleccion.properties.NUMERO_CATASTRAL });
     var f = seleccion, p = f.properties, geo = geometriaLote(f);
     if (!geo) return;
     var m = muns[(p.NUMERO_CATASTRAL || '').slice(0, 5)];
@@ -1996,6 +2004,7 @@
   });
   $('btnVertCsv').addEventListener('click', function () {
     if (!seleccion || !verticesSel.length) return;
+    registrar('descarga', { tipo: 'coordenadas CSV', codigo: seleccion.properties.NUMERO_CATASTRAL });
     var lineas = ['vertice;este_m;norte_m;latitud;longitud'].concat(verticesSel.map(function (v) {
       return [v.letra, v.E.toFixed(3), v.N.toFixed(3), v.lat.toFixed(8), v.lng.toFixed(8)].join(';').replace(/\./g, ','); }));
     var a = document.createElement('a');
@@ -2005,6 +2014,7 @@
   });
   $('btnGeo').addEventListener('click', function () {
     if (!seleccion) return;
+    registrar('descarga', { tipo: 'GeoJSON', codigo: seleccion.properties.NUMERO_CATASTRAL });
     var blob = new Blob([JSON.stringify({ type: 'FeatureCollection', features: [seleccion] })], { type: 'application/geo+json' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -2013,7 +2023,9 @@
   });
 
   // ---------------- paneles
+  var ultimoMunRegistrado = null;
   function pintarRuta(dep, mun) {
+    if (mun && mun.codigo !== ultimoMunRegistrado) { ultimoMunRegistrado = mun.codigo; registrar('municipio', { codigo: mun.codigo, municipio: titulo(mun.nombre) }); }
     setTimeout(marcarEnLista, 0);
     pintarResumen(mun && mun.archivo ? mun : null);
     capaResalte.clearLayers();

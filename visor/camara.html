@@ -194,6 +194,7 @@
 
 <script src="lib/modo_offline.js"></script>
 <script src="lib/datos_archivo.js"></script>
+<script src="lib/registro.js"></script>
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
@@ -273,6 +274,7 @@
     abrirDoc(d, 1); verVista('documentos');
   });
   function abrirDoc(d, pagina) {
+    if (d !== docActual) registrar('documento', { titulo: d.titulo, seccion: d.seccion || '' });
     docActual = d;
     $('docTitulo').textContent = d.titulo + (d.paginas ? ' · ' + d.paginas + ' páginas' : '');
     $('visorPdf').src = rutaDoc(d) + '#page=' + (pagina || 1);

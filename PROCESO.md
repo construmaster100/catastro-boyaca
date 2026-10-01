@@ -61,3 +61,16 @@ La descarga nacional del IGAC (predios) es aparte: `1_INICIAR_DESCARGA.bat` y lu
   commit con conteo y tamaño, p. ej. `Documentos: docs/camara_comercio/tejido-empresarial (19 archivos, 139M)`.
   Así cada `push` es de tamaño manejable.
 - **Publicar (hacer público el repositorio / activar Pages) solo cuando el usuario apruebe la versión final.**
+
+## 5. Vista de administrador (estadísticas de uso)
+
+- **Abrir:** `5_ABRIR_ADMINISTRADOR.bat` → `http://localhost:8765/admin/`. Carpeta independiente `admin/`
+  (fuera de `visor/`, nunca se publica). Solo responde a este computador (127.0.0.1).
+- **Barra lateral:** Resumen, Visitas a la página, Ingresos de personas (sesiones), Predios consultados,
+  Quién consulta (IP, navegador, sistema, idioma, pantalla, primera/última actividad, predios vistos) y Registro
+  de actividad (últimos 300 eventos). Exportar CSV. Se actualiza cada 30 s.
+- **Cómo se registra:** `visor/lib/registro.js` envía cada visita, municipio, predio, ficha, descarga y documento
+  a `servidor_visor.py` (`POST /api/evento`), que lo agrega a `registro/visitas.jsonl`.
+- **Privacidad (Ley 1581 de 2012):** el visor muestra un aviso; `registro/` está en `.gitignore` y no va a la
+  copia offline ni a la versión en línea. Solo se registra cuando el visor se usa a través de `servidor_visor.py`
+  (no en la copia offline sin servidor ni en GitHub Pages, que no tienen servidor propio).

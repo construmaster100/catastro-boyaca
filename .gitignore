@@ -19,3 +19,6 @@ CLAUDE.md
 
 # Respaldo del registro antiguo del visor (su historial ya esta incluido en este repositorio)
 .respaldo_git_visor/
+
+# Registro de visitas (datos personales de quienes consultan): nunca se publica
+registro/
