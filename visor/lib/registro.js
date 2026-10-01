@@ -61,56 +61,71 @@
     '<h3>6. Aceptación</h3><p>Al marcar la casilla y pulsar «Ingresar», el usuario declara haber leído y aceptado estos términos y autoriza el ' +
     'tratamiento de sus datos en las condiciones descritas. Versión ' + TERMINOS_VERSION + '.</p>';
 
-  // ---- pantalla de terminos y condiciones (bloquea el visor hasta aceptar)
-  function pantalla(soloLectura) {
-    var viejo = document.getElementById('terminosCB');
-    if (viejo) viejo.remove();
-    var o = document.createElement('div');
-    o.id = 'terminosCB';
-    o.setAttribute('role', 'dialog');
-    o.setAttribute('aria-modal', 'true');
-    o.setAttribute('aria-labelledby', 'terminosTitulo');
-    o.innerHTML =
-      '<style>' +
-      '#terminosCB{position:fixed;inset:0;z-index:10000;background:rgba(15,30,22,.82);backdrop-filter:blur(4px);display:flex;align-items:center;' +
-      'justify-content:center;padding:16px;font:13.5px/1.5 system-ui,"Segoe UI",sans-serif}' +
-      '#terminosCB .tc{background:#fff;color:#1f2328;border-radius:14px;width:min(760px,100%);max-height:calc(100vh - 32px);display:flex;' +
-      'flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.45);overflow:hidden}' +
-      '#terminosCB .tc-cab{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:3px solid #0f4d2e}' +
-      '#terminosCB .tc-cab img{height:56px}#terminosCB h2{margin:0;font-size:19px;color:#0f4d2e;text-transform:none;letter-spacing:0}' +
-      '#terminosCB h2 small{display:block;font-size:12px;font-weight:400;color:#5d6470;text-transform:none;letter-spacing:0}' +
-      '#terminosCB .tc-texto{overflow-y:auto;padding:6px 22px 10px;flex:1}' +
-      '#terminosCB .tc-texto h3{font-size:13.5px;color:#0f4d2e;margin:14px 0 4px}#terminosCB .tc-texto p{margin:0 0 6px}' +
-      '#terminosCB .tc-pie{border-top:1px solid #dcdad3;padding:14px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:#f7f6f2}' +
-      '#terminosCB label{flex:1 1 360px;display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-weight:600}' +
-      '#terminosCB input[type=checkbox]{width:20px;height:20px;margin:1px 0 0;accent-color:#2f7d4f;flex-shrink:0;cursor:pointer}' +
-      '#terminosCB .ingresar{font:700 15px system-ui,sans-serif;color:#fff;background:#2f7d4f;border:0;border-radius:8px;padding:11px 30px;' +
-      'cursor:pointer;box-shadow:0 2px 8px rgba(47,125,79,.45)}#terminosCB .ingresar:hover{background:#246b40}' +
-      '#terminosCB .ingresar[hidden]{display:none}' +
-      '#terminosCB .sec{font:600 12px system-ui,sans-serif;background:none;border:1px solid #c3c2b7;border-radius:6px;padding:7px 12px;cursor:pointer;color:#1f2328}' +
-      '</style>' +
-      '<div class="tc"><div class="tc-cab"><img src="' + (location.pathname.indexOf('/admin') === 0 ? '/' : '') + 'img/logo_web.png" alt="">' +
-      '<h2 id="terminosTitulo">Términos y condiciones<small>Lea y acepte para ingresar al visor Catastro Boyacá</small></h2></div>' +
-      '<div class="tc-texto">' + TEXTO + '</div>' +
-      '<div class="tc-pie">' + (soloLectura
-        ? '<span style="flex:1">Términos aceptados en este navegador (versión ' + TERMINOS_VERSION + ').</span>' +
-          '<button type="button" class="sec" id="tcRevocar">Revocar autorización</button><button type="button" class="ingresar" id="tcCerrar">Cerrar</button>'
-        : '<label><input type="checkbox" id="tcAcepto"> He leído y acepto los términos y condiciones y autorizo el tratamiento de mis datos personales ' +
-          '(Ley 1581 de 2012).</label><button type="button" class="ingresar" id="tcIngresar" hidden>Ingresar</button>') +
-      '</div></div>';
-    document.body.appendChild(o);
+  // ---- estilos comunes de las dos ventanas
+  var CSS =
+    '.cb-fondo{position:fixed;inset:0;background:rgba(15,30,22,.82);backdrop-filter:blur(4px);display:flex;align-items:center;' +
+    'justify-content:center;padding:16px;font:13.5px/1.5 system-ui,"Segoe UI",sans-serif;color:#1f2328}' +
+    '.cb-caja{background:#fff;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.45);overflow:hidden;display:flex;flex-direction:column;' +
+    'max-height:calc(100vh - 32px)}' +
+    '.cb-cab{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:3px solid #0f4d2e}.cb-cab img{height:56px}' +
+    '.cb-cab h2{margin:0;font-size:19px;color:#0f4d2e;text-transform:none;letter-spacing:0;font-weight:700}' +
+    '.cb-cab h2 small{display:block;font-size:12px;font-weight:400;color:#5d6470}' +
+    '.cb-texto{overflow-y:auto;padding:6px 22px 10px;flex:1}.cb-texto h3{font-size:13.5px;color:#0f4d2e;margin:14px 0 4px;text-transform:none;letter-spacing:0}' +
+    '.cb-texto p{margin:0 0 6px}' +
+    '.cb-pie{border-top:1px solid #dcdad3;padding:14px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:#f7f6f2}' +
+    '.cb-acepto{display:flex;gap:10px;align-items:center;cursor:pointer;font-size:15px;font-weight:600}' +
+    '.cb-acepto input{width:22px;height:22px;margin:0;accent-color:#2f7d4f;cursor:pointer;flex-shrink:0}' +
+    '.cb-acepto a{color:#1e3a8a;text-decoration:underline;font-weight:700}' +
+    '.cb-nota{font-size:11.5px;color:#5d6470;margin:8px 0 0 32px}' +
+    '.cb-verde{font:700 15px system-ui,sans-serif;color:#fff;background:#2f7d4f;border:0;border-radius:8px;padding:11px 34px;cursor:pointer;' +
+    'box-shadow:0 2px 8px rgba(47,125,79,.45)}.cb-verde:hover{background:#246b40}.cb-verde[hidden]{display:none}' +
+    '.cb-sec{font:600 12px system-ui,sans-serif;background:none;border:1px solid #c3c2b7;border-radius:6px;padding:7px 12px;cursor:pointer;color:#1f2328}';
+  var LOGO = (location.pathname.indexOf('/admin') === 0 ? '/' : '') + 'img/logo_web.png';
+
+  function ventana(id, z, html) {
+    var v = document.getElementById(id);
+    if (v) v.remove();
+    v = document.createElement('div');
+    v.id = id; v.className = 'cb-fondo'; v.style.zIndex = z;
+    v.setAttribute('role', 'dialog'); v.setAttribute('aria-modal', 'true');
+    v.innerHTML = '<style>' + CSS + '</style>' + html;
+    document.body.appendChild(v);
     document.documentElement.style.overflow = 'hidden';
-    function cerrar() { o.remove(); document.documentElement.style.overflow = ''; }
-    if (soloLectura) {
-      o.querySelector('#tcCerrar').onclick = cerrar;
-      o.querySelector('#tcRevocar').onclick = function () {
-        window.registrar('aceptacion', { accion: 'revocada', version: TERMINOS_VERSION });
-        ['cb_terminos', 'cb_consent', 'cb_visitante'].forEach(function (n) { poner(n, '', 0); local(n, null); });
-        location.reload();
-      };
-      return;
-    }
-    var casilla = o.querySelector('#tcAcepto'), boton = o.querySelector('#tcIngresar');
+    return v;
+  }
+  function quitar(v) { v.remove(); if (!document.querySelector('.cb-fondo')) document.documentElement.style.overflow = ''; }
+
+  // ---- ventana con el texto completo de los terminos (se abre con el enlace)
+  function ventanaTerminos(desdeEntrada) {
+    var v = ventana('cbTerminos', 10001,
+      '<div class="cb-caja" style="width:min(760px,100%)"><div class="cb-cab"><img src="' + LOGO + '" alt="">' +
+      '<h2>Términos y condiciones<small>Visor Catastro Boyacá · versión ' + TERMINOS_VERSION + '</small></h2></div>' +
+      '<div class="cb-texto">' + TEXTO + '</div><div class="cb-pie">' +
+      (!desdeEntrada && aceptado() ? '<span style="flex:1">Aceptados en este navegador.</span><button type="button" class="cb-sec" id="cbRevocar">Revocar autorización</button>'
+                                   : '<span style="flex:1"></span>') +
+      '<button type="button" class="cb-verde" id="cbCerrarT">Cerrar</button></div></div>');
+    v.querySelector('#cbCerrarT').onclick = function () { quitar(v); };
+    var r = v.querySelector('#cbRevocar');
+    if (r) r.onclick = function () {
+      window.registrar('aceptacion', { accion: 'revocada', version: TERMINOS_VERSION });
+      ['cb_terminos', 'cb_consent', 'cb_visitante'].forEach(function (n) { poner(n, '', 0); local(n, null); });
+      location.reload();
+    };
+  }
+
+  // ---- ventana de entrada (bloquea el visor hasta aceptar)
+  function ventanaEntrada() {
+    var v = ventana('cbEntrada', 10000,
+      '<div class="cb-caja" style="width:min(520px,100%)"><div class="cb-cab"><img src="' + LOGO + '" alt="">' +
+      '<h2>Bienvenido<small>Visor de predios Catastro Boyacá</small></h2></div>' +
+      '<div class="cb-texto" style="padding:18px 22px 6px"><label class="cb-acepto"><input type="checkbox" id="cbAcepto">' +
+      '<span>Acepto los <a href="#" id="cbVerT">términos y condiciones</a></span></label>' +
+      '<p class="cb-nota">Al aceptar se autoriza el uso de cookies y el tratamiento de datos personales descritos en los términos y condiciones ' +
+      '(Ley 1581 de 2012).</p></div>' +
+      '<div class="cb-pie" style="justify-content:flex-end;border-top:0;background:#fff;padding-top:8px">' +
+      '<button type="button" class="cb-verde" id="cbIngresar" hidden>Ingresar</button></div></div>');
+    var casilla = v.querySelector('#cbAcepto'), boton = v.querySelector('#cbIngresar');
+    v.querySelector('#cbVerT').onclick = function (e) { e.preventDefault(); ventanaTerminos(true); };
     casilla.onchange = function () { boton.hidden = !casilla.checked; if (casilla.checked) boton.focus(); };
     boton.onclick = function () {
       if (!casilla.checked) return;
@@ -118,15 +133,15 @@
       poner('cb_consent', 'todas', ANIO);
       window.registrar('aceptacion', { accion: 'aceptada', version: TERMINOS_VERSION });
       window.registrar('visita');
-      cerrar();
+      quitar(v);
     };
   }
-  window.preferenciasCookies = window.verTerminos = function () { pantalla(aceptado()); };
+  window.preferenciasCookies = window.verTerminos = function () { ventanaTerminos(false); };
 
   function iniciar() {
     if (aceptado()) { window.registrar('visita'); return; }
     window.registrar('visita');                       // visita anonima (todavia sin aceptar)
-    pantalla(false);
+    ventanaEntrada();
   }
   if (document.body) iniciar(); else document.addEventListener('DOMContentLoaded', iniciar);
 })();

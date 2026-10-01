@@ -74,7 +74,8 @@ La descarga nacional del IGAC (predios) es aparte: `1_INICIAR_DESCARGA.bat` y lu
 - **Privacidad (Ley 1581 de 2012):** el visor muestra un aviso; `registro/` está en `.gitignore` y no va a la
   copia offline ni a la versión en línea. Solo se registra cuando el visor se usa a través de `servidor_visor.py`
   (no en la copia offline sin servidor ni en GitHub Pages, que no tienen servidor propio).
-- **Términos y condiciones (bloqueante):** al entrar, `visor/lib/registro.js` muestra los términos (objeto, fuentes,
+- **Términos y condiciones (bloqueante):** al entrar, `visor/lib/registro.js` muestra una ventana compacta con la casilla
+  «Acepto los términos y condiciones» (el enlace abre la ventana con el texto completo: objeto, fuentes,
   uso permitido, tratamiento de datos — Ley 1581 de 2012 —, cookies y aceptación). El visor queda bloqueado hasta
   marcar la casilla; entonces aparece el botón verde «Ingresar». La aceptación se guarda un año (cookies
   `cb_terminos`, `cb_consent`, `cb_visitante`; en la copia offline, almacenamiento local) y se registra en el
