@@ -31,7 +31,7 @@ DOCS = CARPETA / "docs"            # documentos descargados (se sirven en /docs/
 ADMIN = CARPETA / "admin"          # vista de administrador (se sirve en /admin/, solo local)
 REGISTRO = CARPETA / "registro" / "visitas.jsonl"
 CANDADO = threading.Lock()
-TIPOS = {"visita", "predio", "municipio", "ficha", "descarga", "documento", "busqueda"}
+TIPOS = {"visita", "predio", "municipio", "ficha", "descarga", "documento", "busqueda", "aceptacion"}
 
 
 @lru_cache(maxsize=64)
@@ -64,12 +64,15 @@ def estadisticas():
                 eventos.append(json.loads(linea))
             except ValueError:
                 pass
-    visitas = [e for e in eventos if e["tipo"] == "visita"]
+    # la visita anonima de antes de aceptar no se cuenta si esa misma sesion acepto despues (seria doble)
+    sids_aceptadas = {e.get("sid") for e in eventos if e.get("consentimiento") == "todas"}
+    visitas = [e for e in eventos if e["tipo"] == "visita"
+               and not (e.get("consentimiento") == "pendiente" and e.get("sid") in sids_aceptadas)]
     predios = [e for e in eventos if e["tipo"] == "predio"]
     por_dia = defaultdict(lambda: {"visitas": 0, "ingresos": set(), "predios": 0})
     for e in eventos:
         d = por_dia[e["fecha"][:10]]
-        if e["tipo"] == "visita":
+        if e["tipo"] == "visita" and not (e.get("consentimiento") == "pendiente" and e.get("sid") in sids_aceptadas):
             d["visitas"] += 1
             d["ingresos"].add(e.get("sid"))
         elif e["tipo"] == "predio":
@@ -106,6 +109,10 @@ def estadisticas():
                     "predios_distintos": len(top_predios),
                     "fichas": sum(e["tipo"] == "ficha" for e in eventos),
                     "descargas": sum(e["tipo"] == "descarga" for e in eventos)},
+        "terminos": {"aceptaciones": sum(1 for e in eventos if e["tipo"] == "aceptacion" and e["datos"].get("accion") == "aceptada"),
+                     "revocaciones": sum(1 for e in eventos if e["tipo"] == "aceptacion" and e["datos"].get("accion") == "revocada"),
+                     "sin_aceptar": len({e["sid"] for e in visitas if e.get("consentimiento") == "pendiente"} -
+                                        {e["sid"] for e in eventos if e.get("consentimiento") == "todas"})},
         "cookies": {"aceptan": len({e["sid"] for e in visitas if e.get("consentimiento", "todas") == "todas"}),
                     "solo_necesarias": len({e["sid"] for e in visitas if e.get("consentimiento") == "necesarias"}),
                     "sin_responder": len({e["sid"] for e in visitas if e.get("consentimiento") == "pendiente"})},
@@ -167,8 +174,10 @@ class Manejador(SimpleHTTPRequestHandler):
             # Cookies: la decision del visitante (cb_consent) manda. Sin "todas" no se guarda IP, navegador ni identificador.
             from http.cookies import SimpleCookie
             galleta = SimpleCookie(self.headers.get("Cookie", ""))
-            consent = galleta["cb_consent"].value if "cb_consent" in galleta else "pendiente"
-            todas = consent == "todas"
+            # aceptado = tiene la cookie de terminos aceptados y la pagina informa consentimiento "todas"
+            acepto = "cb_terminos" in galleta and bool(galleta["cb_terminos"].value)
+            todas = acepto and e.get("consentimiento") == "todas"
+            consent = "todas" if todas else "pendiente"
             vid = galleta["cb_visitante"].value if todas and "cb_visitante" in galleta else (str(e.get("vid", "")) if todas else "")
             reg = {"fecha": datetime.now().isoformat(timespec="seconds"), "tipo": e["tipo"], "consentimiento": consent,
                    "ip": self.client_address[0] if todas else "anónimo",

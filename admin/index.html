@@ -111,8 +111,8 @@
       <div class="caja"><h4>Municipios más consultados</h4><div id="tMun"></div></div>
       <div class="caja"><h4>Navegadores y sistemas</h4><div id="tNav"></div></div>
     </div>
-    <div class="caja"><h4>Cookies: decisión de los visitantes</h4><p class="sub">Ingresos según su respuesta a la barra de cookies.
-      Solo con «Aceptar» se guardan IP, navegador e identificador; el resto se cuenta de forma anónima.</p><div id="tCookies"></div></div>
+    <div class="caja"><h4>Términos y condiciones</h4><p class="sub">Para usar el visor hay que aceptar los términos (casilla + botón «Ingresar»).
+      Quien abre la página y no acepta queda contado como visita anónima, sin IP ni navegador.</p><div id="tCookies"></div></div>
     <p class="aviso">Los datos de quien consulta (fecha, IP, navegador, sistema, idioma, pantalla) se recogen con fines estadísticos y se informa en el
       visor (Ley 1581 de 2012). No se publican: la carpeta <code>registro/</code> está excluida del repositorio y de la versión en línea.</p>
   </section>
@@ -153,7 +153,7 @@
   function fmt(n, d) { return n == null ? '—' : Number(n).toLocaleString('es-CO', { maximumFractionDigits: d || 0 }); }
   function esc(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function fecha(t) { return t ? t.replace('T', ' ').slice(0, 16) : '—'; }
-  var NOMBRES = { visita: 'Visita', predio: 'Predio', municipio: 'Municipio', ficha: 'Ficha impresa', descarga: 'Descarga', documento: 'Documento', busqueda: 'Búsqueda' };
+  var NOMBRES = { aceptacion: 'Términos', visita: 'Visita', predio: 'Predio', municipio: 'Municipio', ficha: 'Ficha impresa', descarga: 'Descarga', documento: 'Documento', busqueda: 'Búsqueda' };
 
   // ---- navegacion de la barra lateral
   document.querySelectorAll('nav button').forEach(function (b) {
@@ -190,8 +190,8 @@
     barras('gVisitas', D.dias, [['visitas', 'var(--s1)', 'Visitas']]);
     barras('gIngresos', D.dias, [['ingresos', 'var(--s3)', 'Ingresos']]);
     barras('gPredios', D.dias, [['predios', 'var(--s2)', 'Predios']]);
-    $('tCookies').innerHTML = lista([['✅ Aceptan cookies', D.cookies.aceptan], ['🔒 Solo necesarias', D.cookies.solo_necesarias],
-                                     ['… Sin responder', D.cookies.sin_responder]], 'Decisión', 'Ingresos');
+    $('tCookies').innerHTML = lista([['✅ Aceptaciones registradas', D.terminos.aceptaciones], ['🚫 Abrieron y no aceptaron (ingresos)', D.terminos.sin_aceptar],
+                                     ['↩ Autorizaciones revocadas', D.terminos.revocaciones]], 'Términos', 'Cantidad');
     $('tMun').innerHTML = lista(D.top_municipios.map(function (m) { return [m.municipio, m.veces]; }), 'Municipio', 'Consultas');
     $('tNav').innerHTML = lista(D.navegadores.concat(D.sistemas.map(function (s) { return ['🖥 ' + s[0], s[1]]; })), 'Navegador / sistema', 'Visitantes');
     $('tPaginas').innerHTML = lista(D.paginas.map(function (p) { return [p[0], p[1]]; }), 'Página', 'Visitas');
@@ -200,11 +200,11 @@
         return '<tr><td>' + (i + 1) + '</td><td><a href="/#' + esc(p.codigo) + '" target="_blank" rel="noopener"><code>' + esc(p.codigo) + '</code></a></td><td>' +
                esc(p.municipio) + '</td><td class="n">' + fmt(p.veces) + '</td></tr>'; }).join('') + '</table>' : '<p class="vacio">Aún no se han consultado predios.</p>';
     $('tConsultantes').innerHTML = D.consultantes.length ? '<table><tr><th>Visitante</th><th>IP</th><th>Navegador</th><th>Sistema</th><th>Idioma</th><th>Pantalla</th>' +
-      '<th>Cookies</th><th>Primera visita</th><th>Última actividad</th><th class="n">Visitas</th><th class="n">Ingresos</th><th class="n">Predios</th><th>Último predio</th></tr>' +
+      '<th>Términos</th><th>Primera visita</th><th>Última actividad</th><th class="n">Visitas</th><th class="n">Ingresos</th><th class="n">Predios</th><th>Último predio</th></tr>' +
       D.consultantes.map(function (c) {
         return '<tr><td><span class="chip">' + esc(c.visitante || '—') + '</span></td><td><code>' + esc(c.ip) + '</code></td><td>' + esc(c.navegador) +
                '</td><td>' + esc(c.sistema) + '</td><td>' + esc(c.idioma) + '</td><td>' + esc(c.pantalla) + '</td><td>' +
-               ({ todas: '✅ Acepta', necesarias: '🔒 Necesarias', pendiente: '… Sin responder' }[c.consentimiento] || '—') + '</td><td>' + fecha(c.primero) + '</td><td>' +
+               ({ todas: '✅ Aceptó', necesarias: '🔒 Necesarias', pendiente: '— No aceptó' }[c.consentimiento] || '—') + '</td><td>' + fecha(c.primero) + '</td><td>' +
                fecha(c.ultimo) + '</td><td class="n">' + fmt(c.visitas) + '</td><td class="n">' + fmt(c.ingresos) + '</td><td class="n">' + fmt(c.predios) +
                '</td><td><code>' + esc(c.ultimo_predio) + '</code></td></tr>'; }).join('') + '</table>' : '<p class="vacio">Sin registros todavía.</p>';
     $('tRegistro').innerHTML = D.recientes.length ? '<table><tr><th>Fecha</th><th>Evento</th><th>Detalle</th><th>Página</th><th>IP</th><th>Visitante</th></tr>' +

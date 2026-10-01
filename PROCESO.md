@@ -74,9 +74,10 @@ La descarga nacional del IGAC (predios) es aparte: `1_INICIAR_DESCARGA.bat` y lu
 - **Privacidad (Ley 1581 de 2012):** el visor muestra un aviso; `registro/` está en `.gitignore` y no va a la
   copia offline ni a la versión en línea. Solo se registra cuando el visor se usa a través de `servidor_visor.py`
   (no en la copia offline sin servidor ni en GitHub Pages, que no tienen servidor propio).
-- **Cookies (con consentimiento):** barra no bloqueante con «Aceptar» / «Solo necesarias» (`visor/lib/registro.js`).
-  `cb_consent` guarda la decisión (1 año); `cb_visitante` (identificador anónimo del navegador, 1 año) solo existe si
-  acepta. Sin aceptar, `servidor_visor.py` registra la visita como **anónima** (sin IP, navegador ni identificador).
-  Se puede cambiar la decisión con el enlace «Cookies y privacidad» de los créditos del mapa. El panel de
-  administrador muestra cuántos aceptan, eligen solo necesarias o no responden. No hay cookies en la copia offline
-  ni en la versión publicada (no tienen servidor de registro).
+- **Términos y condiciones (bloqueante):** al entrar, `visor/lib/registro.js` muestra los términos (objeto, fuentes,
+  uso permitido, tratamiento de datos — Ley 1581 de 2012 —, cookies y aceptación). El visor queda bloqueado hasta
+  marcar la casilla; entonces aparece el botón verde «Ingresar». La aceptación se guarda un año (cookies
+  `cb_terminos`, `cb_consent`, `cb_visitante`; en la copia offline, almacenamiento local) y se registra en el
+  servidor (evento «aceptacion»). Para pedir de nuevo la aceptación a todos, cambiar `TERMINOS_VERSION`.
+  Enlace «Términos y condiciones» en los créditos del mapa: muestra los términos y permite revocar la autorización.
+  Quien abre la página y no acepta queda como visita anónima (sin IP ni navegador).

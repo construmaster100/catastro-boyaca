@@ -517,7 +517,7 @@
   var mapa = L.map('mapa', { preferCanvas: true, renderer: lienzo, zoomSnap: 0.5, wheelPxPerZoomLevel: 90, zoomControl: false,
                              attributionControl: false }).fitBounds(COLOMBIA);
   L.control.attribution({ position: 'bottomleft', prefix: '<a href="https://leafletjs.com">Leaflet</a> | ' +
-    '<a href="#" title="Este visor usa cookies con fines estadísticos (Ley 1581 de 2012)" onclick="window.preferenciasCookies && preferenciasCookies(); return false;">Cookies y privacidad</a>' }).addTo(mapa);
+    '<a href="#" title="Términos y condiciones, datos personales y cookies (Ley 1581 de 2012)" onclick="window.preferenciasCookies && preferenciasCookies(); return false;">Términos y condiciones</a>' }).addTo(mapa);
   // Mapa departamental (en el panel izquierdo); clic = volver a todo el departamento
   $('mapaDep').addEventListener('click', function () { ir('15'); });
 
