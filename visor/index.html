@@ -312,7 +312,19 @@
   .area-lote div { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; text-align: center;
                    font: 800 13px/1.15 system-ui, sans-serif; color: #fff; background: var(--sel);
                    border-radius: 6px; padding: 3px 7px; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
-  .area-lote div small { display: block; font-weight: 500; font-size: 10px; opacity: .9; }
+  .area-lote div small { display: block; font: 500 10px/1.25 ui-monospace, Consolas, monospace; opacity: .95; }
+  .area-lote div .ttl { display: block; font-size: 11.5px; font-weight: 700; margin-bottom: 1px; }
+  .area-lote div b { display: block; font-size: 15px; margin-top: 2px; }
+  /* cuadro de coordenadas sobre el mapa (predio seleccionado) */
+  .cuadro-coord { background: var(--panel); color: var(--texto); border: 1px solid var(--sel); border-radius: 8px; padding: 6px 8px;
+                  box-shadow: 0 2px 8px rgba(0,0,0,.25); font-size: 11px; max-width: 290px; }
+  .cuadro-coord b.t { display: block; color: #7a1030; margin-bottom: 3px; }
+  .cuadro-coord table { border-collapse: collapse; font-variant-numeric: tabular-nums; width: 100%; }
+  .cuadro-coord th, .cuadro-coord td { padding: 1px 5px; text-align: right; border-bottom: 1px solid var(--borde); }
+  .cuadro-coord th:first-child, .cuadro-coord td:first-child { text-align: left; font-weight: 700; }
+  .cuadro-coord th { color: var(--suave); font-weight: 600; }
+  .cuadro-coord tr.total td { border-top: 1px solid var(--texto); border-bottom: 0; font-weight: 700; }
+  .cuadro-coord[hidden] { display: none; }
   .leaflet-container.lejos .cota, .leaflet-container.lejos .area-lote { display: none; }
   #logo { cursor: pointer; }
   /* grilla de coordenadas */
@@ -1012,6 +1024,7 @@
     // tabla de vertices en la ficha del panel
     var gv = geometriaLote(f), p = f.properties;
     verticesSel = gv ? verticesLote(gv) : [];
+    pintarCuadroCoord(p, verticesSel, gv);
     $('fichaVertices').hidden = !verticesSel.length;
     $('vertTitulo').textContent = 'Cuadro de coordenadas · ' + verticesSel.length + ' puntos (m)';
     $('vertTabla').innerHTML = '<tr><th>Punto</th><th>Este (m)</th><th>Norte (m)</th></tr>' + verticesSel.map(function (v) {
@@ -1135,7 +1148,7 @@
     });
     var perimetro = 0;
     pts.forEach(function (a, i) { var b = pts[(i + 1) % pts.length]; perimetro += Math.hypot(b.x - a.x, b.y - a.y); });
-    return { pts: pts, simp: dom, dom: dom, lados: lados, perimetro: perimetro };
+    return { pts: pts, simp: dom, dom: dom, lados: lados, perimetro: perimetro, prop: f.properties };
   }
 
   function agregarCotas(f, grupo) {
@@ -1164,7 +1177,10 @@
     })), 20);
     grupo.addLayer(L.marker(centro, { interactive: false, keyboard: false, zIndexOffset: 30000, icon: L.divIcon({
       className: 'area-lote', iconSize: null,
-      html: '<div>' + fmt(p.AREA_M2, 1) + ' m²' + (p.AREA_M2 >= 10000 ? '<small>' + fmt(p.AREA_M2 / 10000, 3) + ' ha</small>' : '') +
+      html: '<div><span class="ttl">' + esc(nombrePredio(p)) + '</span>' +
+            '<small>Cédula catastral ' + esc(p.NUMERO_CATASTRAL_ANTERIOR || '—') + '</small>' +
+            '<small>N.º predial ' + esc(p.NUMERO_CATASTRAL || '—') + '</small>' +
+            '<b>' + fmt(p.AREA_M2, 1) + ' m²' + (p.AREA_M2 >= 10000 ? ' · ' + fmt(p.AREA_M2 / 10000, 3) + ' ha' : '') + '</b>' +
             '</div>' }) }));
 
     // Vertices: punto, letra y coordenadas planas (MAGNA-SIRGAS Origen Nacional); la etiqueta va hacia afuera del lote
@@ -1216,6 +1232,29 @@
   }
   mapa.on('zoomend', function () { colocarVertices(); });
 
+  // "Nombre" del predio: el IGAC no publica nombres ni propietarios; se identifica por terreno y manzana/vereda
+  function nombrePredio(p) {
+    var c = p.NUMERO_CATASTRAL || '';
+    return 'Predio ' + c.slice(17, 21) + ' · ' + (p.ZONA === 'URBANO' ? 'Manzana ' : 'Vereda ') + c.slice(13, 17) +
+           (c.slice(21) !== '000000000' && c.length === 30 ? ' · Unidad ' + c.slice(26, 30) : '');
+  }
+
+  // Cuadro de coordenadas sobre el mapa mientras haya un predio seleccionado
+  var CuadroCoord = L.Control.extend({ options: { position: 'bottomleft' }, onAdd: function () {
+    var d = L.DomUtil.create('div', 'cuadro-coord'); d.id = 'cuadroCoord'; d.hidden = true;
+    L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d); return d; } });
+  new CuadroCoord().addTo(mapa);
+  function pintarCuadroCoord(p, vert, geo) {
+    var d = $('cuadroCoord');
+    if (!p || !vert || !vert.length) { d.hidden = true; return; }
+    d.innerHTML = '<b class="t">Cuadro de coordenadas · ' + esc(nombrePredio(p)) + '</b><table><tr><th>Punto</th><th>Este (m)</th><th>Norte (m)</th></tr>' +
+      vert.map(function (v) { return '<tr><td>' + v.letra + '</td><td>' + fmt(v.E, 2) + '</td><td>' + fmt(v.N, 2) + '</td></tr>'; }).join('') +
+      '<tr class="total"><td>Área total</td><td colspan="2">' + fmt(p.AREA_M2, 2) + ' m²</td></tr>' +
+      (geo ? '<tr><td>Perímetro</td><td colspan="2">' + fmt(geo.perimetro, 2) + ' m</td></tr>' : '') +
+      '</table><span style="color:var(--suave)">MAGNA-SIRGAS Origen Nacional</span>';
+    d.hidden = false;
+  }
+
   // Vertices del lote (los mismos A, B, C... de la ficha y los linderos) con coordenadas planas y geograficas
   function verticesLote(geo) {
     return geo.dom.map(function (q) {
@@ -1232,11 +1271,11 @@
   }
 
   function planoSVG(geo, area) {
-    var W = 620, H = 430, M = 70;
+    var W = 860, H = 430, M = 70, WD = 620;                   // WD: ancho del dibujo; a la derecha va el cuadro
     var xs = geo.pts.map(function (q) { return q.x; }), ys = geo.pts.map(function (q) { return q.y; });
     var x0 = Math.min.apply(0, xs), x1 = Math.max.apply(0, xs), y0 = Math.min.apply(0, ys), y1 = Math.max.apply(0, ys);
-    var k = Math.min((W - 2 * M) / ((x1 - x0) || 1), (H - 2 * M) / ((y1 - y0) || 1));
-    var ox = (W - (x1 - x0) * k) / 2, oy = (H - (y1 - y0) * k) / 2;
+    var k = Math.min((WD - 2 * M) / ((x1 - x0) || 1), (H - 2 * M) / ((y1 - y0) || 1));
+    var ox = (WD - (x1 - x0) * k) / 2, oy = (H - (y1 - y0) * k) / 2;
     function P(q) { return { px: ox + (q.x - x0) * k, py: H - oy - (q.y - y0) * k }; }
     var contorno = geo.pts.map(function (q) { var p = P(q); return p.px.toFixed(1) + ',' + p.py.toFixed(1); }).join(' ');
     var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H +
@@ -1278,11 +1317,28 @@
              ('<text x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" font-size="' + 12 +
              '" font-weight="700" fill="#1f2328" text-anchor="middle">' + q.num + '</text>');
     });
-    var c = puntoInterior(geo.pts.map(P));
-    svg += '<text x="' + c[0].toFixed(1) + '" y="' + c[1].toFixed(1) + '" font-size="16" font-weight="800" fill="#1f2328" text-anchor="middle">' +
+    var c = puntoInterior(geo.pts.map(P)), pr = geo.prop || {};
+    svg += '<text x="' + c[0].toFixed(1) + '" y="' + (c[1] - 14).toFixed(1) + '" font-size="12" font-weight="700" fill="#1f2328" text-anchor="middle">' +
+           esc(nombrePredio(pr)) + '</text>' +
+           '<text x="' + c[0].toFixed(1) + '" y="' + (c[1] + 1).toFixed(1) + '" font-size="10" fill="#1f2328" text-anchor="middle" font-family="Consolas, monospace">' +
+           'Cédula ' + esc(pr.NUMERO_CATASTRAL_ANTERIOR || '—') + '</text>' +
+           '<text x="' + c[0].toFixed(1) + '" y="' + (c[1] + 19).toFixed(1) + '" font-size="16" font-weight="800" fill="#1f2328" text-anchor="middle">' +
            fmt(area, 2) + ' m²</text>';
+    // cuadro de coordenadas dentro de la imagen (abajo a la derecha)
+    var vt = verticesLote(geo), fx = WD + 20, fh = 16, fy = 60;
+    svg += '<g font-size="10.5" fill="#1f2328"><rect x="' + (fx - 6) + '" y="' + (fy - 15) + '" width="216" height="' + (fh * (vt.length + 2) + 22) +
+           '" fill="#fff" stroke="#b0164a" rx="4"/><text x="' + fx + '" y="' + fy + '" font-weight="700">Punto</text>' +
+           '<text x="' + (fx + 120) + '" y="' + fy + '" font-weight="700" text-anchor="end">Este (m)</text>' +
+           '<text x="' + (fx + 202) + '" y="' + fy + '" font-weight="700" text-anchor="end">Norte (m)</text>';
+    vt.forEach(function (v, i) {
+      var y = fy + fh * (i + 1);
+      svg += '<text x="' + fx + '" y="' + y + '" font-weight="700">' + v.letra + '</text><text x="' + (fx + 120) + '" y="' + y + '" text-anchor="end">' +
+             fmt(v.E, 2) + '</text><text x="' + (fx + 202) + '" y="' + y + '" text-anchor="end">' + fmt(v.N, 2) + '</text>';
+    });
+    svg += '<text x="' + fx + '" y="' + (fy + fh * (vt.length + 1)) + '" font-weight="700">Área total</text><text x="' + (fx + 202) + '" y="' +
+           (fy + fh * (vt.length + 1)) + '" font-weight="700" text-anchor="end">' + fmt(area, 2) + ' m²</text></g>';
     // norte y escala
-    svg += '<g transform="translate(' + (W - 40) + ',50)"><path d="M0,-28 L9,6 L0,0 L-9,6 Z" fill="#1f2328"/>' +
+    svg += '<g transform="translate(' + (WD - 40) + ',50)"><path d="M0,-28 L9,6 L0,0 L-9,6 Z" fill="#1f2328"/>' +
            '<text y="22" font-size="13" font-weight="700" text-anchor="middle">N</text></g>';
     var paso = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000].filter(function (v) { return v * k <= 160; }).pop() || 1;
     svg += '<g transform="translate(20,' + (H - 22) + ')"><rect width="' + (paso * k).toFixed(1) + '" height="6" fill="#1f2328"/>' +
@@ -1913,6 +1969,7 @@
     if (capaMarca) { mapa.removeLayer(capaMarca); capaMarca = null; }
     seleccion = null;
     $('ficha').style.display = 'none';
+    pintarCuadroCoord(null);
     listar([]);
     var c = limpio($('codigo').value).slice(0, 5);
     var m = muns[c];
@@ -2051,6 +2108,7 @@
     if (capaSel) { mapa.removeLayer(capaSel); capaSel = null; }
     seleccion = null;
     $('ficha').style.display = 'none';
+    pintarCuadroCoord(null);
     listar([]);
   }
   function quitarPredios() {
