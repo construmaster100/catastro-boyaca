@@ -16,7 +16,7 @@ completa (descarga del IGAC, visor, fuentes) está en `README.md`.
 de la Cámara se abren desde su página original y los Excel desde el repositorio (`visor/camara.html`
 detecta si está en línea). Los mapas base (calles/satélite) requieren internet.
 
-**Offline:** doble clic en `ABRIR_VISOR_OFFLINE.bat` → `http://localhost:8766/`. Las librerías del mapa
+**Offline:** doble clic en `ABRIR_VISOR.html` (sin servidor: los datos van como `.json.js`, ver `visor/lib/datos_archivo.js`); alternativa `ABRIR_VISOR_OFFLINE.bat` → `http://localhost:8766/`. Las librerías del mapa
 (Leaflet, proj4) están en `visor/lib/`, así que todo funciona sin conexión salvo el mapa base.
 
 **Trabajo:** `4_ABRIR_VISOR.bat` (Python, `http://localhost:8765/`, sirve también `/docs/`).
