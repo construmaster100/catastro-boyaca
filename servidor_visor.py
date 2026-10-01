@@ -81,8 +81,10 @@ def estadisticas():
     paginas = Counter(e.get("pagina") for e in visitas)
     consultantes = {}
     for e in eventos:
-        c = consultantes.setdefault(e.get("vid") or e["ip"], {
-            "visitante": (e.get("vid") or "")[:8], "ip": e["ip"], "navegador": navegador(e.get("ua")),
+        anon = not e.get("vid")
+        clave = "__anonimo__" if anon else e["vid"]
+        c = consultantes.setdefault(clave, {
+            "visitante": "Anónimos" if anon else e["vid"][:8], "ip": e["ip"], "consentimiento": e.get("consentimiento", "todas"), "navegador": navegador(e.get("ua")),
             "sistema": sistema(e.get("ua")), "idioma": e.get("idioma"), "pantalla": e.get("pantalla"),
             "primero": e["fecha"], "ultimo": e["fecha"], "visitas": 0, "ingresos": set(), "predios": 0, "ultimo_predio": ""})
         c["ultimo"] = max(c["ultimo"], e["fecha"])
@@ -104,10 +106,13 @@ def estadisticas():
                     "predios_distintos": len(top_predios),
                     "fichas": sum(e["tipo"] == "ficha" for e in eventos),
                     "descargas": sum(e["tipo"] == "descarga" for e in eventos)},
+        "cookies": {"aceptan": len({e["sid"] for e in visitas if e.get("consentimiento", "todas") == "todas"}),
+                    "solo_necesarias": len({e["sid"] for e in visitas if e.get("consentimiento") == "necesarias"}),
+                    "sin_responder": len({e["sid"] for e in visitas if e.get("consentimiento") == "pendiente"})},
         "dias": dias,
         "paginas": paginas.most_common(),
-        "navegadores": Counter(c["navegador"] for c in lista).most_common(),
-        "sistemas": Counter(c["sistema"] for c in lista).most_common(),
+        "navegadores": Counter(c["navegador"] for c in lista if c["visitante"] != "Anónimos").most_common(),
+        "sistemas": Counter(c["sistema"] for c in lista if c["visitante"] != "Anónimos").most_common(),
         "top_predios": [{"codigo": c, "municipio": m, "veces": n} for (c, m), n in top_predios.most_common(50)],
         "top_municipios": [{"municipio": m, "veces": n} for m, n in top_mun.most_common(30) if m],
         "consultantes": lista[:300],
@@ -159,9 +164,16 @@ class Manejador(SimpleHTTPRequestHandler):
             e = json.loads(self.rfile.read(largo).decode("utf-8"))
             if e.get("tipo") not in TIPOS:
                 raise ValueError("tipo")
-            reg = {"fecha": datetime.now().isoformat(timespec="seconds"), "tipo": e["tipo"],
-                   "ip": self.client_address[0], "ua": self.headers.get("User-Agent", "")[:300],
-                   "pagina": str(e.get("pagina", ""))[:120], "vid": str(e.get("vid", ""))[:40],
+            # Cookies: la decision del visitante (cb_consent) manda. Sin "todas" no se guarda IP, navegador ni identificador.
+            from http.cookies import SimpleCookie
+            galleta = SimpleCookie(self.headers.get("Cookie", ""))
+            consent = galleta["cb_consent"].value if "cb_consent" in galleta else "pendiente"
+            todas = consent == "todas"
+            vid = galleta["cb_visitante"].value if todas and "cb_visitante" in galleta else (str(e.get("vid", "")) if todas else "")
+            reg = {"fecha": datetime.now().isoformat(timespec="seconds"), "tipo": e["tipo"], "consentimiento": consent,
+                   "ip": self.client_address[0] if todas else "anónimo",
+                   "ua": self.headers.get("User-Agent", "")[:300] if todas else "",
+                   "pagina": str(e.get("pagina", ""))[:120], "vid": vid[:40],
                    "sid": str(e.get("sid", ""))[:40], "idioma": str(e.get("idioma", ""))[:20],
                    "pantalla": str(e.get("pantalla", ""))[:20], "ref": str(e.get("ref", ""))[:200],
                    "datos": {k: str(v)[:120] for k, v in (e.get("datos") or {}).items()}}
