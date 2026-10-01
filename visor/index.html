@@ -278,6 +278,8 @@
                  background: rgba(255,255,255,.93); border: 1px solid var(--sel); border-radius: 4px; padding: 2px 4px; }
   .vertice div b { font: 800 12px system-ui, sans-serif; margin-right: 4px; vertical-align: top; }
   .vertice div span { display: inline-block; }
+  .vertice div.solo-num { padding: 1px 4px; }
+  .vertice div.solo-num b { margin: 0; }
   .leaflet-container.lejos .vertice { display: none; }
   #ficha .acciones { display: flex; gap: 5px; flex-wrap: wrap; }
   #ficha button { font: inherit; font-size: 11px; cursor: pointer; border-radius: 6px; padding: 5px 8px;
@@ -1094,6 +1096,14 @@
       var pp = mapa.project([c[1], c[0]], 20);
       return { lng: c[0], lat: c[1], x: c[0] * mx, y: c[1] * my, px: pp.x, py: pp.y };
     });
+    // Numeracion secuencial de TODOS los vertices: desde el punto mas al norte, en sentido horario
+    var sa = 0;
+    pts.forEach(function (a, i) { var b = pts[(i + 1) % pts.length]; sa += a.x * b.y - b.x * a.y; });
+    if (sa > 0) pts.reverse();                                  // antihorario -> horario
+    var norte = 0;
+    pts.forEach(function (q, i) { if (q.y > pts[norte].y) norte = i; });
+    pts = pts.slice(norte).concat(pts.slice(0, norte));
+    pts.forEach(function (q, i) { q.num = i + 1; });
     var simp = ladosPrincipales(pts.slice());
     var s = 0;
     simp.forEach(function (a, i) { var b = simp[(i + 1) % simp.length]; s += a.x * b.y - b.x * a.y; });
@@ -1102,7 +1112,7 @@
       var nx = (s > 0 ? dy : -dy) / largo, ny = (s > 0 ? -dx : dx) / largo;   // normal hacia afuera
       var k = ((Math.round(Math.atan2(ny, nx) / (Math.PI / 4)) % 8) + 8) % 8;
       return { a: a, b: b, largo: largo, nx: nx, ny: ny, rumbo: RUMBOS[k],
-               desde: String.fromCharCode(65 + i), hasta: String.fromCharCode(65 + (i + 1) % simp.length) };
+               desde: String(a.num), hasta: String(b.num) };
     });
     var perimetro = 0;
     pts.forEach(function (a, i) { var b = pts[(i + 1) % pts.length]; perimetro += Math.hypot(b.x - a.x, b.y - a.y); });
@@ -1139,25 +1149,59 @@
             '</div>' }) }));
 
     // Vertices: punto, letra y coordenadas planas (MAGNA-SIRGAS Origen Nacional); la etiqueta va hacia afuera del lote
-    var cpx = centro ? mapa.project(centro, 20) : null, vert = verticesLote(geo), conCoord = vert.length <= 12;
-    vert.forEach(function (v) {
-      var pv = mapa.project([v.lat, v.lng], 20), dx = pv.x - cpx.x, dy = pv.y - cpx.y, n = Math.hypot(dx, dy) || 1;
+    // todos los vertices numerados; con muchos puntos solo el numero en el mapa (coordenadas en la tabla de la ficha)
+    var vert = verticesLote(geo);
+    vertEtq = vert.map(function (v) {
       grupo.addLayer(L.circleMarker([v.lat, v.lng], { renderer: lienzo, radius: 4.5, color: css('--sel'), weight: 2,
                                                        fillColor: '#ffffff', fillOpacity: 1, interactive: false }));
-      grupo.addLayer(L.marker([v.lat, v.lng], { interactive: false, keyboard: false, zIndexOffset: 25000, icon: L.divIcon({
-        className: 'vertice', iconSize: null,
-        html: '<div style="transform: translate(' + (dx < 0 ? 'calc(-100% - 9px)' : '9px') + ', calc(-50% + ' +
-              (dy / n * 12).toFixed(1) + 'px))"><b>' + v.letra + '</b>' +
-              (conCoord ? '<span>E ' + fmt(v.E, 2) + '<br>N ' + fmt(v.N, 2) + '</span>' : '') + '</div>' }) }));
+      var mk = L.marker([v.lat, v.lng], { interactive: false, keyboard: false, zIndexOffset: 25000,
+                                          icon: L.divIcon({ className: 'vertice', iconSize: null, html: '' }) });
+      grupo.addLayer(mk);
+      return { v: v, mk: mk, centro: centro };
     });
+    colocarVertices();
     mapa.getContainer().classList.toggle('lejos', mapa.getZoom() < ZOOM_COTAS);
   }
 
+  // Etiquetas de vertices sin superposicion: el numero siempre; las coordenadas solo donde caben.
+  // Se recalcula con cada cambio de zoom (lo que cabe depende de la escala).
+  var vertEtq = [];
+  function colocarVertices() {
+    if (!vertEtq.length || !capaSel || !mapa.hasLayer(capaSel)) return;
+    var c = mapa.latLngToContainerPoint(vertEtq[0].centro), ocupadas = [];
+    var choca = function (b) { return ocupadas.some(function (o) { return b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]; }); };
+    // primero los puntos (para no tapar ningun vertice), luego las etiquetas
+    var pos = vertEtq.map(function (e) { var p = mapa.latLngToContainerPoint([e.v.lat, e.v.lng]); ocupadas.push([p.x - 5, p.y - 5, p.x + 5, p.y + 5]); return p; });
+    vertEtq.forEach(function (e, i) {
+      var p = pos[i], izq = p.x < c.x, abajo = p.y > c.y;
+      var completa = function (ancho, alto) {
+        var x0 = izq ? p.x - 9 - ancho : p.x + 9, y0 = p.y - alto / 2 + (abajo ? 6 : -6);
+        return [x0, y0, x0 + ancho, y0 + alto];
+      };
+      var caja = completa(112, 28), html = '';
+      if (!choca(caja)) {
+        html = '<b>' + e.v.letra + '</b><span>E ' + fmt(e.v.E, 2) + '<br>N ' + fmt(e.v.N, 2) + '</span>';
+      } else {
+        caja = completa(8 + 7 * e.v.letra.length, 16);
+        html = '<b>' + e.v.letra + '</b>';
+        if (choca(caja)) {                                     // tampoco cabe a un lado: se prueba al otro lado
+          izq = !izq; caja = completa(8 + 7 * e.v.letra.length, 16);
+        }
+      }
+      ocupadas.push(caja);
+      var dx = caja[0] - p.x, dy = caja[1] - p.y;
+      e.mk.setIcon(L.divIcon({ className: 'vertice', iconSize: null,
+        html: '<div class="' + (html.indexOf('<span>') < 0 ? 'solo-num' : '') + '" style="transform: translate(' +
+              dx.toFixed(0) + 'px,' + dy.toFixed(0) + 'px)">' + html + '</div>' }));
+    });
+  }
+  mapa.on('zoomend', function () { colocarVertices(); });
+
   // Vertices del lote (los mismos A, B, C... de la ficha y los linderos) con coordenadas planas y geograficas
   function verticesLote(geo) {
-    return geo.lados.map(function (l) {
-      var c = aPlano.forward([l.a.lng, l.a.lat]);
-      return { letra: l.desde, lat: l.a.lat, lng: l.a.lng, E: c[0], N: c[1] };
+    return geo.pts.map(function (q) {
+      var c = aPlano.forward([q.lng, q.lat]);
+      return { letra: String(q.num), lat: q.lat, lng: q.lng, E: c[0], N: c[1] };
     });
   }
 
@@ -1188,10 +1232,32 @@
              'text-anchor="middle" dominant-baseline="middle" transform="rotate(' + ang.toFixed(1) + ' ' + tx.toFixed(1) + ' ' + ty.toFixed(1) + ')">' +
              fmt(l.largo, 2) + ' m</text>';
     });
-    geo.lados.forEach(function (l) {
-      var a = P(l.a);
-      svg += '<circle cx="' + a.px.toFixed(1) + '" cy="' + a.py.toFixed(1) + '" r="4" fill="#b0164a"/>' +
-             '<text x="' + (a.px + 8).toFixed(1) + '" y="' + (a.py - 8).toFixed(1) + '" font-size="13" font-weight="700" fill="#1f2328">' + l.desde + '</text>';
+    var cen = { x: 0, y: 0 };
+    geo.pts.forEach(function (q) { var a = P(q); cen.x += a.px / geo.pts.length; cen.y += a.py / geo.pts.length; });
+    // espacios ocupados [centro x, centro y, medio ancho, medio alto]: primero las medidas de los lados
+    // (cada medida es una caja girada con su lado: ux,uy = direccion del lado)
+    var puestos = geo.lados.map(function (l) {
+      var a = P(l.a), b = P(l.b), L0 = Math.hypot(b.px - a.px, b.py - a.py) || 1;
+      return [(a.px + b.px) / 2 + l.nx * 16, (a.py + b.py) / 2 - l.ny * 16, 30, 9, (b.px - a.px) / L0, (b.py - a.py) / L0];
+    });
+    var choca = function (x, y) {
+      return puestos.some(function (o) {
+        var ux = o[4] || 1, uy = o[5] || 0, rx = x - o[0], ry = y - o[1];
+        return Math.abs(rx * ux + ry * uy) < o[2] + 7 && Math.abs(-rx * uy + ry * ux) < o[3] + 7;
+      });
+    };
+    geo.pts.forEach(function (q) {                    // todos los vertices numerados, numero hacia afuera del lote
+      var a = P(q), dx = a.px - cen.x, dy = a.py - cen.y, n = Math.hypot(dx, dy) || 1, d = 11;
+      var tx = a.px + dx / n * d, ty = a.py + dy / n * d + 4;
+      while (d < 70 && choca(tx, ty - 4)) {
+        d += 9; tx = a.px + dx / n * d; ty = a.py + dy / n * d + 4;             // si choca, mas afuera con linea guia
+      }
+      puestos.push([tx, ty - 4, 6, 6]);
+      if (d > 11) svg += '<line x1="' + a.px.toFixed(1) + '" y1="' + a.py.toFixed(1) + '" x2="' + tx.toFixed(1) + '" y2="' + (ty - 4).toFixed(1) +
+                         '" stroke="#b0164a" stroke-width=".6" stroke-dasharray="2 2"/>';
+      svg += '<circle cx="' + a.px.toFixed(1) + '" cy="' + a.py.toFixed(1) + '" r="' + (geo.pts.length > 40 ? 2 : 3.5) + '" fill="#b0164a"/>' +
+             (geo.pts.length <= 60 ? '<text x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" font-size="' + (geo.pts.length > 25 ? 9 : 12) +
+             '" font-weight="700" fill="#1f2328" text-anchor="middle">' + q.num + '</text>' : '');
     });
     var c = puntoInterior(geo.pts.map(P));
     svg += '<text x="' + c[0].toFixed(1) + '" y="' + c[1].toFixed(1) + '" font-size="16" font-weight="800" fill="#1f2328" text-anchor="middle">' +
