@@ -266,6 +266,19 @@
   #ficha dl { display: grid; grid-template-columns: 78px 1fr; gap: 3px 6px; margin: 0 0 8px; }
   #ficha dt { color: var(--suave); font-size: 11px; }
   #ficha dd { margin: 0; overflow-wrap: anywhere; }
+  #fichaVertices { margin: 0 0 8px; font-size: 11px; }
+  #fichaVertices summary { cursor: pointer; font-weight: 700; color: var(--suave); margin-bottom: 4px; }
+  .tabla-vert { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-bottom: 5px; }
+  .tabla-vert th, .tabla-vert td { padding: 2px 3px; border-bottom: 1px solid var(--borde); text-align: right; }
+  .tabla-vert th:first-child, .tabla-vert td:first-child { text-align: center; }
+  .tabla-vert th { color: var(--suave); font-weight: 600; }
+  /* vertices del lote sobre el mapa */
+  .vertice { background: none; border: 0; pointer-events: none; }
+  .vertice div { position: absolute; white-space: nowrap; font: 600 10px/1.15 ui-monospace, Consolas, monospace; color: #7a1030;
+                 background: rgba(255,255,255,.93); border: 1px solid var(--sel); border-radius: 4px; padding: 2px 4px; }
+  .vertice div b { font: 800 12px system-ui, sans-serif; margin-right: 4px; vertical-align: top; }
+  .vertice div span { display: inline-block; }
+  .leaflet-container.lejos .vertice { display: none; }
   #ficha .acciones { display: flex; gap: 5px; flex-wrap: wrap; }
   #ficha button { font: inherit; font-size: 11px; cursor: pointer; border-radius: 6px; padding: 5px 8px;
                   background: transparent; color: var(--texto); border: 1px solid var(--borde); }
@@ -360,6 +373,11 @@
   <section id="ficha">
     <h2>Predio identificado</h2>
     <dl id="fichaDatos"></dl>
+    <details id="fichaVertices" open hidden>
+      <summary id="vertTitulo">Vértices</summary>
+      <table id="vertTabla" class="tabla-vert"></table>
+      <button id="btnVertCsv" type="button">⬇ Coordenadas (CSV)</button>
+    </details>
     <div class="acciones">
       <button class="pri" id="btnCopiar">Copiar número</button>
       <button id="btnGmaps">Google Maps</button>
@@ -618,7 +636,7 @@
   var capaNombres = L.layerGroup().addTo(mapa);     // codigo + nombre de cada municipio
   var capaEtiquetas = L.layerGroup().addTo(mapa);   // sectores, manzanas/veredas o numeros de predio
   var capasPredios = {};
-  var capaMarca = null, capaSel = null;
+  var capaMarca = null, capaSel = null, verticesSel = [];
 
   // ---------------- estado
   var indice = null, deps = {}, muns = {}, limites = {};
@@ -984,6 +1002,13 @@
       ['Área', fmt(p.AREA_M2) + ' m²' + (p.AREA_M2 >= 10000 ? ' (' + fmt(p.AREA_M2 / 10000, 4) + ' ha)' : '')],
       ['Coordenadas', fmt(p.LATITUD, 6) + ', ' + fmt(p.LONGITUD, 6)]
     ].map(function (r) { return '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; }).join('');
+    // tabla de vertices en la ficha del panel
+    var gv = geometriaLote(f);
+    verticesSel = gv ? verticesLote(gv) : [];
+    $('fichaVertices').hidden = !verticesSel.length;
+    $('vertTitulo').textContent = 'Vértices (' + verticesSel.length + ') · Este / Norte en metros';
+    $('vertTabla').innerHTML = '<tr><th>Vértice</th><th>Este (m)</th><th>Norte (m)</th></tr>' + verticesSel.map(function (v) {
+      return '<tr><td><b>' + v.letra + '</b></td><td>' + fmt(v.E, 2) + '</td><td>' + fmt(v.N, 2) + '</td></tr>'; }).join('');
     $('ficha').style.display = 'block';
     if (fichaDirecta) { fichaDirecta = false; abrirFicha(true); }
   }
@@ -1108,7 +1133,28 @@
       className: 'area-lote', iconSize: null,
       html: '<div>' + fmt(p.AREA_M2, 1) + ' m²' + (p.AREA_M2 >= 10000 ? '<small>' + fmt(p.AREA_M2 / 10000, 3) + ' ha</small>' : '') +
             '</div>' }) }));
+
+    // Vertices: punto, letra y coordenadas planas (MAGNA-SIRGAS Origen Nacional); la etiqueta va hacia afuera del lote
+    var cpx = centro ? mapa.project(centro, 20) : null, vert = verticesLote(geo), conCoord = vert.length <= 12;
+    vert.forEach(function (v) {
+      var pv = mapa.project([v.lat, v.lng], 20), dx = pv.x - cpx.x, dy = pv.y - cpx.y, n = Math.hypot(dx, dy) || 1;
+      grupo.addLayer(L.circleMarker([v.lat, v.lng], { renderer: lienzo, radius: 4.5, color: css('--sel'), weight: 2,
+                                                       fillColor: '#ffffff', fillOpacity: 1, interactive: false }));
+      grupo.addLayer(L.marker([v.lat, v.lng], { interactive: false, keyboard: false, zIndexOffset: 25000, icon: L.divIcon({
+        className: 'vertice', iconSize: null,
+        html: '<div style="transform: translate(' + (dx < 0 ? 'calc(-100% - 9px)' : '9px') + ', calc(-50% + ' +
+              (dy / n * 12).toFixed(1) + 'px))"><b>' + v.letra + '</b>' +
+              (conCoord ? '<span>E ' + fmt(v.E, 2) + '<br>N ' + fmt(v.N, 2) + '</span>' : '') + '</div>' }) }));
+    });
     mapa.getContainer().classList.toggle('lejos', mapa.getZoom() < ZOOM_COTAS);
+  }
+
+  // Vertices del lote (los mismos A, B, C... de la ficha y los linderos) con coordenadas planas y geograficas
+  function verticesLote(geo) {
+    return geo.lados.map(function (l) {
+      var c = aPlano.forward([l.a.lng, l.a.lat]);
+      return { letra: l.desde, lat: l.a.lat, lng: l.a.lng, E: c[0], N: c[1] };
+    });
   }
 
   // ---------------- ficha imprimible: area, numero y linderos, con plano del lote
@@ -1179,6 +1225,10 @@
     var linderos = geo.lados.map(function (l, i) {
       return '<tr><td>' + (i + 1) + '</td><td>' + l.rumbo + '</td><td>' + l.desde + ' – ' + l.hasta + '</td><td class="num">' + fmt(l.largo, 2) + ' m</td></tr>';
     }).join('');
+    var vertices = verticesLote(geo).map(function (v) {
+      return '<tr><td><b>' + v.letra + '</b></td><td class="num">' + fmt(v.E, 2) + '</td><td class="num">' + fmt(v.N, 2) +
+             '</td><td class="num">' + fmt(v.lat, 7) + '</td><td class="num">' + fmt(v.lng, 7) + '</td></tr>';
+    }).join('');
     var nombre = 'predio_' + p.NUMERO_CATASTRAL;
     var html = '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Ficha ' + nombre + '</title><style>' +
       'body{font:13px/1.45 Arial,sans-serif;color:#1f2328;margin:0;background:#eee}' +
@@ -1201,6 +1251,9 @@
       '<h2>Identificación</h2><table>' + filas + '</table>' +
       '<h2>Plano del lote</h2><div class="plano" id="plano">' + planoSVG(geo, p.AREA_M2) + '</div>' +
       '<h2>Linderos</h2><table class="linderos"><tr><th>#</th><th>Rumbo</th><th>Tramo</th><th class="num">Longitud</th></tr>' + linderos + '</table>' +
+      '<h2>Coordenadas de los vértices</h2><table class="linderos"><tr><th>Vértice</th><th class="num">Este (m)</th>' +
+      '<th class="num">Norte (m)</th><th class="num">Latitud</th><th class="num">Longitud</th></tr>' + vertices + '</table>' +
+      '<p class="nota" style="margin-top:4px">Este/Norte: MAGNA-SIRGAS Origen Nacional (EPSG:9377). Latitud/longitud: MAGNA-SIRGAS (EPSG:4686).</p>' +
       '<p class="nota">Fuente: IGAC, Datos Abiertos Catastrales (capa ' + (p.ZONA === 'URBANO' ? 'U_TERRENO' : 'R_TERRENO') + '). ' +
       'Área, perímetro y longitudes calculados a partir de la geometría publicada (MAGNA-SIRGAS, EPSG:4686); linderos simplificados ' +
       'uniendo tramos casi rectos. Documento informativo: no reemplaza el certificado catastral ni un levantamiento topográfico.</p></div>' +
@@ -1792,6 +1845,15 @@
   });
   $('btnGmaps').addEventListener('click', function () {
     if (seleccion) window.open('https://www.google.com/maps?q=' + seleccion.properties.LATITUD + ',' + seleccion.properties.LONGITUD, '_blank');
+  });
+  $('btnVertCsv').addEventListener('click', function () {
+    if (!seleccion || !verticesSel.length) return;
+    var lineas = ['vertice;este_m;norte_m;latitud;longitud'].concat(verticesSel.map(function (v) {
+      return [v.letra, v.E.toFixed(3), v.N.toFixed(3), v.lat.toFixed(8), v.lng.toFixed(8)].join(';').replace(/\./g, ','); }));
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + lineas.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'vertices_' + seleccion.properties.NUMERO_CATASTRAL + '.csv';
+    a.click();
   });
   $('btnGeo').addEventListener('click', function () {
     if (!seleccion) return;
