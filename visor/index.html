@@ -537,17 +537,13 @@
   }
   mapa.on('moveend', actualizarMini);
   L.control.zoom({ position: 'bottomright' }).addTo(mapa);   // queda encima del mapa departamental
-  // Mapas base. El servidor gratuito de OpenStreetMap (tile.openstreetmap.org) bloquea este tipo de visores
-  // ("Access blocked", HTTP 418), por eso se usan CARTO (datos OSM) y Esri, que permiten este uso.
-  var calles = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    { maxZoom: 20, maxNativeZoom: 19, subdomains: 'abcd',
-      attribution: '&copy; OpenStreetMap &copy; CARTO · Datos: IGAC' }).addTo(mapa);
-  var callesEsri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-    { maxZoom: 20, maxNativeZoom: 19, attribution: 'Esri World Street Map · Datos: IGAC' });
+  // Mapas base: Esri. Probados el 01/10/2026: OpenStreetMap (tile.openstreetmap.org) bloquea este visor
+  // ("Access blocked", HTTP 418) y CARTO exige clave ("API KEY REQUIRED"); Esri entrega mapas reales.
+  var calles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 20, maxNativeZoom: 18, attribution: 'Esri World Street Map · Datos: IGAC' }).addTo(mapa);
   var satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     { maxZoom: 20, maxNativeZoom: 19, attribution: 'Esri World Imagery · Datos: IGAC' });
-  var controlCapas = L.control.layers({ 'Calles (CARTO)': calles, 'Calles (Esri)': callesEsri, 'Satélite': satelite }, null,
-                                      { position: 'topright' }).addTo(mapa);
+  var controlCapas = L.control.layers({ 'Calles': calles, 'Satélite': satelite }, null, { position: 'topright' }).addTo(mapa);
   controlCapas.addOverlay(capaRaster, 'Mapa departamental (ilustrado)');
   L.control.scale({ imperial: false }).addTo(mapa);
 
