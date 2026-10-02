@@ -24,18 +24,26 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
   body { background: var(--bg); color: var(--texto); font: 13px/1.45 system-ui, "Segoe UI", Roboto, sans-serif;
-         display: grid; grid-template-columns: 250px 1fr; grid-template-rows: 100px 1fr; height: 100vh; overflow: hidden;
-         grid-template-areas: "logo cabeza" "lateral principal"; }
+         display: grid; grid-template-columns: 250px 1fr 250px; grid-template-rows: 50px 50px 1fr; height: 100vh; overflow: hidden;
+         grid-template-areas: "logo banner perito" "logo cabeza perito" "lateral principal principal"; }
+  /* mismo encabezado del visor: logo 250x100, banner 50 px + barra 50 px, logo del perito */
+  #banner { grid-area: banner; overflow: hidden; background: #fff; border-bottom: 1px solid var(--borde); }
+  #banner img { display: block; width: 100%; height: 100%; object-fit: contain; }
+  #logoPerito { grid-area: perito; background: var(--panel); border-left: 1px solid var(--borde); border-bottom: 1px solid var(--borde);
+                display: flex; align-items: center; justify-content: center; }
+  #logoPerito img { width: 100%; height: 100%; object-fit: contain; padding: 4px 6px; }
   #logo { grid-area: logo; background: var(--panel); border-right: 1px solid var(--borde); border-bottom: 1px solid var(--borde);
           display: flex; align-items: center; justify-content: center; }
   #logo img { width: 100%; height: 100%; object-fit: contain; padding: 4px 6px; }
-  header { grid-area: cabeza; background: var(--nav); color: var(--nav-texto); display: flex; align-items: center; gap: 16px; padding: 0 22px; }
-  header h1 { margin: 0; font-size: 19px; flex: 1; }
-  header h1 small { display: block; font-size: 12px; font-weight: 400; opacity: .7; }
-  header button, header a { font: 600 12px system-ui, sans-serif; color: var(--nav-texto); background: rgba(255,255,255,.1);
-                            border: 1px solid rgba(255,255,255,.25); border-radius: 6px; padding: 6px 12px; cursor: pointer; text-decoration: none; }
+  header { grid-area: cabeza; height: 50px; background: var(--nav); color: var(--nav-texto); display: flex; align-items: center; gap: 12px; padding: 0 16px; min-width: 0; }
+  header h1 { margin: 0; font-size: 14px; font-weight: 400; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  header h1 b { font-weight: 600; }
+  header h1 .sep { opacity: .45; margin: 0 4px; }
+  header h1 small { font-size: 12px; opacity: .65; margin-left: 10px; }
+  header button, header a { font: 600 12px system-ui, sans-serif; color: var(--nav-texto); background: rgba(255,255,255,.08);
+                            border: 1px solid rgba(255,255,255,.22); border-radius: 6px; padding: 5px 10px; cursor: pointer; text-decoration: none; white-space: nowrap; }
   /* barra lateral */
-  nav { grid-area: lateral; background: var(--panel); border-right: 1px solid var(--borde); padding: 14px 10px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
+  nav { grid-area: lateral; width: 250px; background: var(--panel); border-right: 1px solid var(--borde); padding: 12px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
   nav h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--suave); margin: 4px 8px 6px; }
   nav button { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; text-align: left;
                font: 600 13px system-ui, sans-serif; color: var(--texto); background: none; border: 0; border-left: 3px solid transparent;
@@ -75,15 +83,17 @@
   .aviso { font-size: 11.5px; color: var(--suave); background: var(--panel); border: 1px dashed var(--borde); border-radius: 8px; padding: 8px 12px; }
   @media (max-width: 900px) {
     body { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; grid-template-areas: "cabeza" "lateral" "principal"; overflow: auto; height: auto; }
-    #logo { display: none; } nav { flex-direction: row; flex-wrap: wrap; } nav .pie, nav h2 { display: none; } nav button { width: auto; }
+    #logo, #banner, #logoPerito { display: none; } nav { width: auto; } nav { flex-direction: row; flex-wrap: wrap; } nav .pie, nav h2 { display: none; } nav button { width: auto; }
     .dos { grid-template-columns: 1fr; } header { padding: 10px 14px; flex-wrap: wrap; }
   }
 </style>
 </head>
 <body>
+<div id="banner"><img src="/img/banner_web.jpg" alt="Catastro Boyacá"></div>
+<div id="logoPerito"><img src="/img/logoperito_web.png" alt="Perito Catastral e Inmobiliario Juan Yamil López #01"></div>
 <div id="logo"><img src="/img/logo_web.png" alt="Catastro Boyacá"></div>
 <header>
-  <h1>Administración · Estadísticas de uso<small id="generado">Cargando…</small></h1>
+  <h1>Colombia<span class="sep">›</span>Boyacá<span class="sep">›</span><b>Administración · Estadísticas de uso</b><small id="generado">Cargando…</small></h1>
   <button id="btnRecargar" type="button">↻ Actualizar</button>
   <button id="btnCsv" type="button">⬇ Exportar CSV</button>
   <a href="/" target="_blank" rel="noopener">🗺 Abrir visor</a>

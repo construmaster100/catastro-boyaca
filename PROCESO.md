@@ -64,7 +64,7 @@ La descarga nacional del IGAC (predios) es aparte: `1_INICIAR_DESCARGA.bat` y lu
 
 ## 5. Vista de administrador (estadísticas de uso)
 
-- **Abrir:** `5_ABRIR_ADMINISTRADOR.bat` → `http://localhost:8765/admin/`. Carpeta independiente `admin/`
+- **Abrir:** `5_ABRIR_ADMINISTRADOR.bat` → `http://localhost:8765/admin/` (mismo estilo y encabezado del visor). Carpeta independiente `admin/`
   (fuera de `visor/`, nunca se publica). Solo responde a este computador (127.0.0.1).
 - **Barra lateral:** Resumen, Visitas a la página, Ingresos de personas (sesiones), Predios consultados,
   Quién consulta (IP, navegador, sistema, idioma, pantalla, primera/última actividad, predios vistos) y Registro
@@ -75,7 +75,7 @@ La descarga nacional del IGAC (predios) es aparte: `1_INICIAR_DESCARGA.bat` y lu
   copia offline ni a la versión en línea. Solo se registra cuando el visor se usa a través de `servidor_visor.py`
   (no en la copia offline sin servidor ni en GitHub Pages, que no tienen servidor propio).
 - **Términos y condiciones (bloqueante):** al entrar, `visor/lib/registro.js` muestra una ventana compacta con la casilla
-  «Acepto los términos y condiciones» (el enlace abre la ventana con el texto completo: objeto, fuentes,
+  «Acepto los términos y condiciones» (el enlace es desplegable: muestra el texto completo en la misma ventana: objeto, fuentes,
   uso permitido, tratamiento de datos — Ley 1581 de 2012 —, cookies y aceptación). El visor queda bloqueado hasta
   marcar la casilla; entonces aparece el botón verde «Ingresar». La aceptación se guarda un año (cookies
   `cb_terminos`, `cb_consent`, `cb_visitante`; en la copia offline, almacenamiento local) y se registra en el

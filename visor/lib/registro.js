@@ -9,7 +9,7 @@
  * Si cambia TERMINOS_VERSION, todos deben volver a aceptar.
  */
 (function () {
-  var TERMINOS_VERSION = '2026-10-01';
+  var TERMINOS_VERSION = '2026-10-01.2';   // al cambiarla, todos deben volver a aceptar
   var conServidor = location.protocol.indexOf('http') === 0 && !window.__SOLO_JS && !/github\.io$/i.test(location.hostname);
   var ANIO = 365 * 24 * 3600;
   function leer(n) { var m = document.cookie.match(new RegExp('(?:^|; )' + n + '=([^;]*)')); return m ? decodeURIComponent(m[1]) : ''; }
@@ -62,24 +62,33 @@
     'tratamiento de sus datos en las condiciones descritas. Versión ' + TERMINOS_VERSION + '.</p>';
 
   // ---- estilos comunes de las dos ventanas
+  // Misma hoja de estilo del visor: usa sus variables (--panel, --texto, --suave, --borde, --bg, --nav, --ok...),
+  // su tipografia y sus bordes; asi respeta tambien el modo oscuro. Los valores despues de la coma son de respaldo.
   var CSS =
-    '.cb-fondo{position:fixed;inset:0;background:rgba(15,30,22,.82);backdrop-filter:blur(4px);display:flex;align-items:center;' +
-    'justify-content:center;padding:16px;font:13.5px/1.5 system-ui,"Segoe UI",sans-serif;color:#1f2328}' +
-    '.cb-caja{background:#fff;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.45);overflow:hidden;display:flex;flex-direction:column;' +
-    'max-height:calc(100vh - 32px)}' +
-    '.cb-cab{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:3px solid #0f4d2e}.cb-cab img{height:56px}' +
-    '.cb-cab h2{margin:0;font-size:19px;color:#0f4d2e;text-transform:none;letter-spacing:0;font-weight:700}' +
-    '.cb-cab h2 small{display:block;font-size:12px;font-weight:400;color:#5d6470}' +
-    '.cb-texto{overflow-y:auto;padding:6px 22px 10px;flex:1}.cb-texto h3{font-size:13.5px;color:#0f4d2e;margin:14px 0 4px;text-transform:none;letter-spacing:0}' +
-    '.cb-texto p{margin:0 0 6px}' +
-    '.cb-pie{border-top:1px solid #dcdad3;padding:14px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:#f7f6f2}' +
-    '.cb-acepto{display:flex;gap:10px;align-items:center;cursor:pointer;font-size:15px;font-weight:600}' +
-    '.cb-acepto input{width:22px;height:22px;margin:0;accent-color:#2f7d4f;cursor:pointer;flex-shrink:0}' +
-    '.cb-acepto a{color:#1e3a8a;text-decoration:underline;font-weight:700}' +
-    '.cb-nota{font-size:11.5px;color:#5d6470;margin:8px 0 0 32px}' +
-    '.cb-verde{font:700 15px system-ui,sans-serif;color:#fff;background:#2f7d4f;border:0;border-radius:8px;padding:11px 34px;cursor:pointer;' +
-    'box-shadow:0 2px 8px rgba(47,125,79,.45)}.cb-verde:hover{background:#246b40}.cb-verde[hidden]{display:none}' +
-    '.cb-sec{font:600 12px system-ui,sans-serif;background:none;border:1px solid #c3c2b7;border-radius:6px;padding:7px 12px;cursor:pointer;color:#1f2328}';
+    '.cb-fondo{position:fixed;inset:0;background:rgba(15,20,25,.78);backdrop-filter:blur(3px);display:flex;align-items:center;' +
+    'justify-content:center;padding:16px;font:13px/1.45 system-ui,"Segoe UI",Roboto,sans-serif;color:var(--texto,#1f2328)}' +
+    '.cb-caja{background:var(--panel,#fff);color:var(--texto,#1f2328);border:1px solid var(--borde,#dcdad3);border-radius:8px;' +
+    'box-shadow:0 12px 40px rgba(0,0,0,.4);overflow:hidden;display:flex;flex-direction:column;max-height:calc(100vh - 32px)}' +
+    '.cb-cab{display:flex;align-items:stretch;background:var(--panel,#fff);border-bottom:1px solid var(--borde,#dcdad3)}' +
+    '.cb-cab img{width:170px;height:68px;object-fit:contain;padding:4px 8px;border-right:1px solid var(--borde,#dcdad3);background:var(--panel,#fff)}' +
+    '.cb-cab h2{margin:0;flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 16px;background:var(--nav,#1f2a36);' +
+    'color:var(--nav-texto,#f3f1ec);font-size:15px;font-weight:700;text-transform:none;letter-spacing:0}' +
+    '.cb-cab h2 small{display:block;font-size:12px;font-weight:400;opacity:.75}' +
+    '.cb-texto{overflow-y:auto;padding:6px 18px 10px;flex:1}' +
+    '.cb-texto h3{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--suave,#5d6470);margin:14px 0 4px;font-weight:700}' +
+    '.cb-texto p{margin:0 0 6px}.cb-texto b{color:var(--texto,#1f2328)}' +
+    '.cb-pie{border-top:1px solid var(--borde,#dcdad3);padding:12px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--bg,#f5f4f0)}' +
+    '.cb-acepto{display:flex;gap:10px;align-items:center;cursor:pointer;font-size:14px;font-weight:600}' +
+    '.cb-acepto input{width:20px;height:20px;margin:0;accent-color:var(--ok,#2f7d4f);cursor:pointer;flex-shrink:0}' +
+    '.cb-acepto a{color:var(--acento,#b4531f);text-decoration:underline;font-weight:700}' +
+    '.cb-despliegue{margin:10px 0 2px;padding:4px 14px 8px;max-height:46vh;overflow-y:auto;border:1px solid var(--borde,#dcdad3);' +
+    'border-radius:6px;background:var(--bg,#f5f4f0)}' +
+    '.cb-despliegue h3{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--suave,#5d6470);margin:12px 0 3px;font-weight:700}' +
+    '.cb-despliegue p{margin:0 0 6px}' +
+    '.cb-nota{font-size:11px;color:var(--suave,#5d6470);margin:8px 0 0 30px}' +
+    '.cb-verde{font:600 13px system-ui,"Segoe UI",sans-serif;color:#fff;background:var(--ok,#2f7d4f);border:0;border-radius:6px;padding:9px 28px;cursor:pointer}' +
+    '.cb-verde:hover{filter:brightness(1.1)}.cb-verde[hidden]{display:none}' +
+    '.cb-sec{font:600 12px system-ui,sans-serif;background:var(--bg,#f5f4f0);border:1px solid var(--borde,#dcdad3);border-radius:6px;padding:7px 12px;cursor:pointer;color:var(--texto,#1f2328)}';
   var LOGO = (location.pathname.indexOf('/admin') === 0 ? '/' : '') + 'img/logo_web.png';
 
   function ventana(id, z, html) {
@@ -116,16 +125,24 @@
   // ---- ventana de entrada (bloquea el visor hasta aceptar)
   function ventanaEntrada() {
     var v = ventana('cbEntrada', 10000,
-      '<div class="cb-caja" style="width:min(520px,100%)"><div class="cb-cab"><img src="' + LOGO + '" alt="">' +
+      '<div class="cb-caja" style="width:min(640px,100%)"><div class="cb-cab"><img src="' + LOGO + '" alt="">' +
       '<h2>Bienvenido<small>Visor de predios Catastro Boyacá</small></h2></div>' +
       '<div class="cb-texto" style="padding:18px 22px 6px"><label class="cb-acepto"><input type="checkbox" id="cbAcepto">' +
-      '<span>Acepto los <a href="#" id="cbVerT">términos y condiciones</a></span></label>' +
+      '<span>Acepto los <a href="#" id="cbVerT" aria-expanded="false" aria-controls="cbDespliegue">términos y condiciones ▾</a></span></label>' +
+      '<div id="cbDespliegue" class="cb-despliegue" hidden>' + TEXTO + '</div>' +
       '<p class="cb-nota">Al aceptar se autoriza el uso de cookies y el tratamiento de datos personales descritos en los términos y condiciones ' +
       '(Ley 1581 de 2012).</p></div>' +
-      '<div class="cb-pie" style="justify-content:flex-end;border-top:0;background:#fff;padding-top:8px">' +
+      '<div class="cb-pie" style="justify-content:flex-end">' +
       '<button type="button" class="cb-verde" id="cbIngresar" hidden>Ingresar</button></div></div>');
     var casilla = v.querySelector('#cbAcepto'), boton = v.querySelector('#cbIngresar');
-    v.querySelector('#cbVerT').onclick = function (e) { e.preventDefault(); ventanaTerminos(true); };
+    // enlace desplegable: muestra / oculta el texto de los terminos dentro de la misma ventana
+    v.querySelector('#cbVerT').onclick = function (e) {
+      e.preventDefault();
+      var d = v.querySelector('#cbDespliegue'), abierto = d.hidden;
+      d.hidden = !abierto;
+      this.setAttribute('aria-expanded', String(abierto));
+      this.textContent = 'términos y condiciones ' + (abierto ? '▴' : '▾');
+    };
     casilla.onchange = function () { boton.hidden = !casilla.checked; if (casilla.checked) boton.focus(); };
     boton.onclick = function () {
       if (!casilla.checked) return;
