@@ -8,8 +8,8 @@ por departamento y municipio, en formatos que abren QGIS, ArcGIS, AutoCAD, Excel
 - **Creado:** 28 de septiembre de 2026 · **Última actualización:** 29 de septiembre de 2026
 - **Equipos:** original `C:\Users\CMconstrumaster\Desktop\Database`; actual `C:\Users\USUARIO\Desktop\Database`
 - **Estado actual (29/09/2026):**
-  - Descarga nacional: **urbano COMPLETO** (3.616.348 predios); **rural 63 %** (1.990.000 de 3.146.345).
-    Se reanuda con `1_INICIAR_DESCARGA.bat`.
+  - Descarga nacional **COMPLETA** (08/10/2026): 3.616.348 predios urbanos + 3.146.344 rurales;
+    986 municipios con datos (los demás tienen gestor catastral propio).
   - **Visor web "Catastro Boyacá"** funcionando en local (`4_ABRIR_VISOR.bat`) con los 123 municipios de
     Boyacá (756.197 predios). **No publicado**: se publica solo cuando se apruebe la versión final ([§ 15](#15-visor-web-buscador-de-predios)).
   - Todo el proyecto está versionado con Git en esta carpeta ([§ 16](#16-control-de-versiones)).
@@ -543,7 +543,7 @@ hueco con su anillo exterior (Polygon o MultiPolygon).
 - [x] Instalar Python y librerías en el equipo original.
 - [x] Sistema nacional por carpetas con GeoJSON, shapefile, CSV y metadata (`catastro_colombia.py`).
 - [x] Prueba corta del sistema completo.
-- [ ] **Terminar la descarga rural** (`1_INICIAR_DESCARGA.bat`) — falta ~37 %, unas 3–4 horas.
+- [x] Descarga nacional completa (08/10/2026): 6.762.692 predios.
 - [x] Visor web de Boyacá (local).
 - [ ] Aprobar la versión final del visor y **publicarlo** (GitHub Pages, ver § 15 y § 16).
 - [ ] Agregar Cundinamarca y Casanare al visor (hoy "proyectados"): `python preparar_visor.py 25 85` y

@@ -1,6 +1,6 @@
 # Análisis de «Boyacá en Cifras» (Cámara de Comercio de Tunja)
 
-Generado el 29/09/2026 con `analisis_cct.py`. Página: <https://cctunja.org.co/estudios-economicos/boyaca-en-cifras/>
+Generado el 08/10/2026 con `analisis_cct.py`. Página: <https://cctunja.org.co/estudios-economicos/boyaca-en-cifras/>
 
 ## 1. Fuentes publicadas en la página
 
@@ -128,9 +128,9 @@ Total: **14 fuentes** (11 PDF, 1 Excel, 2 tablero Power BI).
 
 | Clase | Predios | % de predios | Área (ha) | % del área catastral |
 |---|---|---|---|---|
-| Urbano (actividad económica) | 209.059 | 27,6 % | 9.761 | 0,43 % |
-| Rural vivienda (10–300 m²) | 15.314 | 2,0 % | 233 | 0,01 % |
-| Rural agropecuario (> 300 m²) | 531.794 | 70,3 % | 2.260.948 | 99,56 % |
+| Urbano (actividad económica) | 209.063 | 27,6 % | 9.762 | 0,43 % |
+| Rural vivienda (10–300 m²) | 15.315 | 2,0 % | 233 | 0,01 % |
+| Rural agropecuario (> 300 m²) | 531.797 | 70,3 % | 2.260.950 | 99,56 % |
 | Rural atípico (< 10 m²) | 30 | 0,0 % | — | — |
 
 **¿Se cumple el criterio? Correlación con los indicadores económicos (Pearson y Spearman, 123 municipios)**
@@ -141,7 +141,7 @@ Total: **14 fuentes** (11 PDF, 1 Excel, 2 tablero Power BI).
 | Valor agregado ↔ área urbana de los predios | 0,92 | 0,66 | moderada |
 | Empresas renovadas ↔ predios urbanos | 0,97 | 0,83 | fuerte |
 | Producción agrícola (ton) ↔ área agropecuaria | -0,06 | 0,07 | débil |
-| Bovinos ↔ área agropecuaria | 0,63 | 0,72 | fuerte |
+| Bovinos ↔ área agropecuaria | 0,63 | 0,71 | fuerte |
 | Población ↔ viviendas (predios urbanos + vivienda rural) | 0,97 | 0,77 | fuerte |
 
 - Los 3 municipios con más valor agregado tienen el **42,4 %** de los predios urbanos del departamento y generan el **31,9 %** del valor agregado: la actividad económica se concentra en lo urbano, como plantea el criterio.
@@ -155,6 +155,13 @@ Se comparan los municipios de la página (Excel 2024) con los del repositorio (D
 |---|---|
 | Código y nombre idénticos | 122 |
 | Código igual; nombre igual sin tildes/mayúsculas | 1 |
+| Solo en el repositorio | 1 |
+
+**Diferencias de nombre o cobertura**
+
+| Código | Página | Repositorio | Resultado |
+|---|---|---|---|
+| 15000 |  | Sin_Nombre_Divipola | Solo en el repositorio |
 
 **Cruce con los datos propios (correlación de Pearson, 123 municipios)**
 
